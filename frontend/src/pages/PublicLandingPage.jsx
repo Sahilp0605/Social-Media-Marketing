@@ -24,6 +24,7 @@ const PublicLandingPage = () => {
 
   useEffect(() => {
     fetchPage();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [slug]);
 
   const fetchPage = async () => {
@@ -40,7 +41,7 @@ const PublicLandingPage = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setSubmitting(true);
-    
+
     try {
       await axios.post(`${API}/leads`, {
         ...form,
@@ -159,8 +160,8 @@ const PublicLandingPage = () => {
                 />
               </div>
 
-              <Button 
-                type="submit" 
+              <Button
+                type="submit"
                 className="w-full h-12 text-base font-medium"
                 style={{ backgroundColor: page.background_color, color: page.text_color }}
                 disabled={submitting}
