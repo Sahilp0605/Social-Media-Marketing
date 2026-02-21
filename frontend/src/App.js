@@ -22,6 +22,9 @@ import PublicLandingPage from "@/pages/PublicLandingPage";
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 export const API = `${BACKEND_URL}/api`;
 
+// Configure axios defaults for credentials
+axios.defaults.withCredentials = true;
+
 // Auth context
 import { createContext, useContext } from "react";
 
