@@ -1,34 +1,116 @@
-.App-logo {
-    height: 40vmin;
-    pointer-events: none;
-}
-
-@media (prefers-reduced-motion: no-preference) {
-    .App-logo {
-        animation: App-logo-spin infinite 20s linear;
-    }
-}
-
-.App-header {
-    background-color: #0f0f10;
+/* App-specific styles */
+.App {
     min-height: 100vh;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    font-size: calc(10px + 2vmin);
-    color: white;
 }
 
-.App-link {
-    color: #61dafb;
+/* Platform icons */
+.platform-icon {
+    @apply w-8 h-8 rounded-lg flex items-center justify-center text-white font-semibold text-sm;
 }
 
-@keyframes App-logo-spin {
-    from {
-        transform: rotate(0deg);
-    }
-    to {
-        transform: rotate(360deg);
-    }
+.platform-instagram {
+    background: linear-gradient(45deg, #f09433, #e6683c, #dc2743, #cc2366, #bc1888);
+}
+
+.platform-facebook {
+    background: #1877F2;
+}
+
+.platform-linkedin {
+    background: #0A66C2;
+}
+
+.platform-twitter {
+    background: #000000;
+}
+
+/* Status badges */
+.status-badge {
+    @apply px-2.5 py-1 rounded-full text-xs font-medium;
+}
+
+.status-new {
+    @apply bg-emerald-50 text-emerald-700 border border-emerald-200;
+}
+
+.status-contacted {
+    @apply bg-blue-50 text-blue-700 border border-blue-200;
+}
+
+.status-converted {
+    @apply bg-violet-50 text-violet-700 border border-violet-200;
+}
+
+.status-draft {
+    @apply bg-slate-100 text-slate-600 border border-slate-200;
+}
+
+.status-scheduled {
+    @apply bg-amber-50 text-amber-700 border border-amber-200;
+}
+
+.status-published {
+    @apply bg-emerald-50 text-emerald-700 border border-emerald-200;
+}
+
+/* Bento grid */
+.bento-grid {
+    @apply grid gap-4 md:gap-6;
+}
+
+.bento-grid-dashboard {
+    @apply grid-cols-1 md:grid-cols-2 lg:grid-cols-4;
+}
+
+/* Stat cards */
+.stat-card {
+    @apply bg-white rounded-xl border border-slate-100 p-6 shadow-card hover:shadow-card-hover transition-all duration-300;
+}
+
+.stat-card-icon {
+    @apply w-12 h-12 rounded-xl flex items-center justify-center;
+}
+
+.stat-card-value {
+    @apply text-3xl font-bold text-slate-900 font-heading;
+}
+
+.stat-card-label {
+    @apply text-sm text-slate-500 font-medium;
+}
+
+/* Calendar styles */
+.calendar-day {
+    @apply w-full aspect-square flex flex-col items-start justify-start p-2 text-sm border border-slate-100 hover:bg-slate-50 transition-colors;
+}
+
+.calendar-day-today {
+    @apply bg-indigo-50 border-indigo-200;
+}
+
+.calendar-event {
+    @apply text-xs px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-700 truncate w-full mt-1;
+}
+
+/* Template card */
+.template-card {
+    @apply relative group overflow-hidden rounded-xl border border-slate-100 bg-white shadow-card hover:shadow-card-hover transition-all duration-300;
+}
+
+.template-card-overlay {
+    @apply absolute inset-0 bg-gradient-to-t from-black/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-end justify-center pb-6;
+}
+
+/* Empty state */
+.empty-state {
+    @apply flex flex-col items-center justify-center py-16 text-center;
+}
+
+.empty-state-icon {
+    @apply w-16 h-16 rounded-2xl bg-slate-100 flex items-center justify-center mb-4;
+}
+
+/* Loading spinner */
+.loading-spinner {
+    @apply animate-spin rounded-full border-2 border-slate-200 border-t-indigo-600;
 }
