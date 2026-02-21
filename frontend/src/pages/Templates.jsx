@@ -212,11 +212,11 @@ const Templates = () => {
                     </div>
                     <div>
                       <Label htmlFor="category">Category</Label>
-                      <Select value={form.category} onValueChange={(v) => setForm({ ...form, category: v })}>
+                      <Select value={form.category} onValueChange={(v) => setForm({ ...form, category: v })} modal={true}>
                         <SelectTrigger className="mt-1.5" data-testid="template-category-select">
                           <SelectValue placeholder="Select category" />
                         </SelectTrigger>
-                        <SelectContent>
+                        <SelectContent position="popper" sideOffset={5}>
                           {categories.map((cat) => (
                             <SelectItem key={cat} value={cat}>{cat}</SelectItem>
                           ))}
