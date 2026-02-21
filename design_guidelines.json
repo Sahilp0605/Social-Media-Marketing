@@ -1,0 +1,189 @@
+{
+  "brand_identity": {
+    "name": "SocialFlow AI",
+    "core_values": [
+      "Precision",
+      "Creativity",
+      "Velocity"
+    ],
+    "personality": "The 'Performance Pro' - Elite, Athletic, Tech-Forward. A command center for marketers.",
+    "emotional_tone": "Empowered, Organized, Limitless."
+  },
+  "design_system": {
+    "theme": {
+      "mode": "light",
+      "strategy": "High Contrast SaaS with Dark Sidebar (The 'Linear' Aesthetic)"
+    },
+    "colors": {
+      "palette": {
+        "primary": {
+          "DEFAULT": "#4F46E5",
+          "foreground": "#FFFFFF",
+          "hover": "#4338CA",
+          "description": "Electric Indigo. Use for Primary Actions (Save, Publish, Create)."
+        },
+        "secondary": {
+          "DEFAULT": "#8B5CF6",
+          "foreground": "#FFFFFF",
+          "description": "Vivid Violet. Use for AI-related features and magic moments."
+        },
+        "accent": {
+          "DEFAULT": "#F43F5E",
+          "foreground": "#FFFFFF",
+          "description": "Neon Rose. Use for high-priority alerts or 'Hot' items."
+        },
+        "background": {
+          "body": "#F8FAFC",
+          "sidebar": "#0F172A",
+          "card": "#FFFFFF"
+        },
+        "text": {
+          "primary": "#0F172A",
+          "secondary": "#64748B",
+          "muted": "#94A3B8",
+          "on_dark": "#F1F5F9"
+        },
+        "border": {
+          "DEFAULT": "#E2E8F0",
+          "subtle": "#F1F5F9",
+          "strong": "#CBD5E1"
+        }
+      },
+      "gradients": {
+        "brand_gradient": "bg-gradient-to-r from-indigo-600 to-violet-600",
+        "ai_gradient": "bg-gradient-to-r from-violet-500 to-fuchsia-500",
+        "glass_surface": "bg-white/70 backdrop-blur-xl border border-white/20 shadow-sm"
+      }
+    },
+    "typography": {
+      "font_family": {
+        "headings": "Outfit, sans-serif",
+        "body": "Inter, sans-serif",
+        "mono": "JetBrains Mono, monospace"
+      },
+      "imports": [
+        "https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap"
+      ],
+      "rules": {
+        "headings": "font-bold tracking-tight text-slate-900",
+        "subheadings": "font-medium tracking-normal text-slate-500",
+        "body": "font-normal text-slate-600 leading-relaxed",
+        "nav": "font-medium text-sm tracking-wide"
+      }
+    },
+    "spacing": {
+      "container_padding": "p-6 md:p-8 lg:p-12",
+      "section_gap": "gap-8 md:gap-12",
+      "element_gap": "gap-4"
+    },
+    "borders": {
+      "radius": {
+        "default": "rounded-lg",
+        "card": "rounded-xl",
+        "button": "rounded-md",
+        "input": "rounded-md"
+      },
+      "width": "border",
+      "style": "border-slate-200"
+    },
+    "shadows": {
+      "card": "shadow-[0_2px_8px_rgba(15,23,42,0.04)]",
+      "hover": "shadow-[0_8px_24px_rgba(15,23,42,0.08)]",
+      "dropdown": "shadow-xl border border-slate-100",
+      "glow": "shadow-[0_0_16px_rgba(79,70,229,0.3)]"
+    }
+  },
+  "components": {
+    "buttons": {
+      "primary": "bg-primary text-primary-foreground hover:bg-primary/90 h-10 px-6 font-medium transition-all duration-200 active:scale-95 shadow-sm",
+      "secondary": "bg-white text-slate-700 border border-slate-200 hover:bg-slate-50 hover:border-slate-300 h-10 px-6 font-medium transition-all duration-200",
+      "ghost": "text-slate-600 hover:bg-slate-100 hover:text-slate-900",
+      "destructive": "bg-red-50 text-red-600 hover:bg-red-100 border border-red-100"
+    },
+    "cards": {
+      "base": "bg-white border border-slate-100 shadow-[0_2px_12px_-4px_rgba(0,0,0,0.04)] rounded-xl overflow-hidden",
+      "interactive": "hover:border-indigo-100 hover:shadow-[0_4px_20px_-4px_rgba(79,70,229,0.1)] transition-all duration-300 cursor-pointer"
+    },
+    "inputs": {
+      "base": "bg-slate-50 border-slate-200 text-slate-900 focus:bg-white focus:ring-2 focus:ring-indigo-100 focus:border-indigo-500 transition-all duration-200 placeholder:text-slate-400"
+    },
+    "navigation": {
+      "sidebar": "bg-slate-900 text-slate-300 w-64 h-screen fixed left-0 top-0 border-r border-slate-800",
+      "sidebar_item": "flex items-center gap-3 px-4 py-3 rounded-md hover:bg-slate-800 hover:text-white transition-colors text-sm font-medium",
+      "sidebar_item_active": "bg-indigo-600 text-white shadow-lg shadow-indigo-900/50"
+    }
+  },
+  "layout_strategies": {
+    "dashboard": {
+      "grid": "grid grid-cols-1 md:grid-cols-12 gap-6",
+      "modes": {
+        "overview": "Bento Grid Mode B (High Density)",
+        "content_creator": "Two Column: Editor (8) + Preview (4)"
+      }
+    },
+    "marketing": {
+      "container": "max-w-7xl mx-auto px-4 sm:px-6 lg:px-8",
+      "section_spacing": "py-20 md:py-32"
+    }
+  },
+  "visual_assets": {
+    "hero_images": [
+      {
+        "url": "https://images.unsplash.com/photo-1746470427577-3520a681deab?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTY2Njd8MHwxfHNlYXJjaHw0fHxhYnN0cmFjdCUyMGRpZ2l0YWwlMjBuZXR3b3JrJTIwdGVjaG5vbG9neSUyMHB1cnBsZXxlbnwwfHx8fDE3NzE2Nzg4NTh8MA&ixlib=rb-4.1.0&q=85",
+        "alt": "Abstract Digital Network - Use for Hero Background Overlay"
+      },
+      {
+        "url": "https://images.pexels.com/photos/18069211/pexels-photo-18069211.png?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+        "alt": "3D Abstract Purple Art - Use for Feature Highlights"
+      }
+    ],
+    "people": [
+      {
+        "url": "https://images.pexels.com/photos/7888986/pexels-photo-7888986.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+        "alt": "Creative Team Collaborating - Use for About/Team Section"
+      },
+      {
+        "url": "https://images.unsplash.com/photo-1758873268631-fa944fc5cad2?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjAzMzJ8MHwxfHNlYXJjaHwxfHxtb2Rlcm4lMjBvZmZpY2UlMjBjcmVhdGl2ZSUyMHRlYW0lMjBkaXZlcnNpdHl8ZW58MHx8fHwxNzcxNjc4ODU2fDA&ixlib=rb-4.1.0&q=85",
+        "alt": "Diverse Team Standing - Use for Career/Culture"
+      }
+    ],
+    "avatars": [
+      {
+        "url": "https://images.pexels.com/photos/30004320/pexels-photo-30004320.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+        "alt": "Professional Woman Headshot"
+      },
+      {
+        "url": "https://images.unsplash.com/photo-1651684215020-f7a5b6610f23?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1NzV8MHwxfHNlYXJjaHwxfHxwcm9mZXNzaW9uYWwlMjBoZWFkc2hvdCUyMHNtaWxlfGVufDB8fHx8MTc3MTY3ODg1OXww&ixlib=rb-4.1.0&q=85",
+        "alt": "Professional Man Headshot"
+      }
+    ],
+    "templates": [
+      {
+        "url": "https://images.pexels.com/photos/28450983/pexels-photo-28450983.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+        "alt": "Aesthetic Workspace - Template Preview 1"
+      },
+      {
+        "url": "https://images.unsplash.com/photo-1741896135518-ce303a539bc0?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1NTN8MHwxfHNlYXJjaHwzfHxtaW5pbWFsaXN0JTIwcHJvZHVjdCUyMHBob3RvZ3JhcGh5JTIwc2tpbmNhcmV8ZW58MHx8fHwxNzcxNjc4ODYxfDA&ixlib=rb-4.1.0&q=85",
+        "alt": "Minimal Product Shot - Template Preview 2"
+      }
+    ]
+  },
+  "universal_guidelines": {
+    "do": [
+      "Use 'sonner' for all toast notifications.",
+      "Use 'lucide-react' for icons.",
+      "Add 'data-testid' to all interactive elements.",
+      "Ensure all text on colored backgrounds has sufficient contrast.",
+      "Use 'AnimatePresence' from framer-motion for exit animations.",
+      "Keep the sidebar dark (#0F172A) to separate navigation from the workspace."
+    ],
+    "dont": [
+      "Do NOT use 'Inter' for Headings. Use 'Outfit'.",
+      "Do NOT use default shadcn card styles without customizing the shadow and border.",
+      "Do NOT use Teal/Green for primary actions. Stick to Indigo/Violet.",
+      "Do NOT use 'alert()' or native confirm dialogs. Use Shadcn Dialog.",
+      "Do NOT center text on the dashboard. Left align is better for data scanning."
+    ]
+  },
+  "instructions_to_main_agent": "1. Install fonts via CSS import in index.css. 2. Update tailwind.config.js with the new color palette (Indigo/Violet). 3. Implement the Layout Wrapper with the Dark Sidebar. 4. Build the Dashboard using the Bento Grid strategy. 5. Use the provided image URLs for the Landing Page and Template Gallery."
+}
