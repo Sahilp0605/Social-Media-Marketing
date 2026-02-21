@@ -17,6 +17,7 @@ import base64
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
 
+
 # MongoDB connection
 mongo_url = os.environ['MONGO_URL']
 client = AsyncIOMotorClient(mongo_url)
@@ -676,8 +677,6 @@ async def get_analytics_overview(user: dict = Depends(get_current_user)):
 
 @api_router.post("/ai/generate")
 async def generate_ai_content(req: AIGenerateRequest, user: dict = Depends(get_current_user)):
-    from emergentintegrations.llm.chat import LlmChat, UserMessage
-    
     api_key = os.environ.get("EMERGENT_LLM_KEY")
     if not api_key:
         raise HTTPException(status_code=500, detail="AI service not configured")
@@ -692,6 +691,7 @@ async def generate_ai_content(req: AIGenerateRequest, user: dict = Depends(get_c
         raise HTTPException(status_code=400, detail="Invalid type. Use 'caption' or 'hashtags'")
     
     try:
+        from emergentintegrations.llm.chat import LlmChat, UserMessage
         chat = LlmChat(
             api_key=api_key,
             session_id=f"ai_{user['user_id']}_{uuid.uuid4().hex[:8]}",
@@ -701,19 +701,27 @@ async def generate_ai_content(req: AIGenerateRequest, user: dict = Depends(get_c
         
         response = await chat.send_message(UserMessage(text=user_msg))
         return {"result": response, "type": req.type}
+    except ImportError:
+        logger.warning("emergentintegrations module not found. Using local mock for AI text generation.")
+        # Fallback for local development
+        if req.type == "caption":
+            response = f"✨ Looking for inspiration? Here is a great post about {req.prompt}! 🚀 Let's make it happen. #Marketing #Success"
+        else:
+            response = f"#awesome #{req.prompt.replace(' ', '')} #trending #viral #content"
+            
+        return {"result": response, "type": req.type}
     except Exception as e:
         logger.error(f"AI generation error: {str(e)}")
         raise HTTPException(status_code=500, detail=f"AI generation failed: {str(e)}")
 
 @api_router.post("/ai/generate-image")
 async def generate_ai_image(req: AIGenerateRequest, user: dict = Depends(get_current_user)):
-    from emergentintegrations.llm.chat import LlmChat, UserMessage
-    
     api_key = os.environ.get("EMERGENT_LLM_KEY")
     if not api_key:
         raise HTTPException(status_code=500, detail="AI service not configured")
     
     try:
+        from emergentintegrations.llm.chat import LlmChat, UserMessage
         chat = LlmChat(
             api_key=api_key,
             session_id=f"img_{user['user_id']}_{uuid.uuid4().hex[:8]}",
@@ -736,6 +744,16 @@ async def generate_ai_image(req: AIGenerateRequest, user: dict = Depends(get_cur
             }
         else:
             return {"text": text, "message": "No image generated"}
+    except ImportError:
+        logger.warning("emergentintegrations module not found. Using local mock for AI image generation.")
+        # Return a fallback image
+        url_prompt = req.prompt.replace(" ", "+")
+        return {
+            "image_url": f"https://via.placeholder.com/800x800.png?text=AI+Generated:+{url_prompt}",
+            "image_data": "",
+            "mime_type": "image/png",
+            "text": "Fallback image generated successfully."
+        }
     except Exception as e:
         logger.error(f"Image generation error: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Image generation failed: {str(e)}")

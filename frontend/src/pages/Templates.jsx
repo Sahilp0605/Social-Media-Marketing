@@ -5,9 +5,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { 
-  Plus, 
-  Sparkles, 
+import {
+  Plus,
+  Sparkles,
   Upload,
   Trash2,
   Loader2,
@@ -78,11 +78,11 @@ const Templates = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
-    const imageUrl = activeTab === "ai" && generatedImage 
-      ? `data:${generatedImage.mime_type};base64,${generatedImage.image_data}`
+
+    const imageUrl = activeTab === "ai" && generatedImage
+      ? generatedImage.image_url
       : form.image_url;
-    
+
     if (!imageUrl) {
       toast.error("Please provide an image URL or generate one with AI");
       return;
@@ -109,15 +109,15 @@ const Templates = () => {
       toast.error("Please enter a prompt for AI generation");
       return;
     }
-    
+
     setGenerating(true);
     try {
       const res = await axios.post(`${API}/ai/generate-image`, {
         prompt: form.ai_prompt,
         type: "image"
       }, { withCredentials: true });
-      
-      if (res.data.image_data) {
+
+      if (res.data.image_url) {
         setGeneratedImage(res.data);
         toast.success("Image generated successfully!");
       } else {
@@ -182,7 +182,7 @@ const Templates = () => {
               <DialogHeader>
                 <DialogTitle className="font-heading">Create Template</DialogTitle>
               </DialogHeader>
-              
+
               <Tabs value={activeTab} onValueChange={setActiveTab} className="mt-4">
                 <TabsList className="grid w-full grid-cols-2">
                   <TabsTrigger value="upload" data-testid="upload-tab">
@@ -194,7 +194,7 @@ const Templates = () => {
                     AI Generate
                   </TabsTrigger>
                 </TabsList>
-                
+
                 <form onSubmit={handleSubmit} className="mt-6 space-y-6">
                   {/* Template Info */}
                   <div className="grid grid-cols-2 gap-4">
@@ -251,9 +251,9 @@ const Templates = () => {
                     </div>
                     {form.image_url && (
                       <div className="rounded-xl overflow-hidden border border-slate-200">
-                        <img 
-                          src={form.image_url} 
-                          alt="Preview" 
+                        <img
+                          src={form.image_url}
+                          alt="Preview"
                           className="w-full h-48 object-cover"
                           onError={(e) => e.target.style.display = 'none'}
                         />
@@ -273,7 +273,7 @@ const Templates = () => {
                         data-testid="ai-prompt-input"
                       />
                     </div>
-                    <Button 
+                    <Button
                       type="button"
                       onClick={generateImage}
                       disabled={generating}
@@ -294,9 +294,9 @@ const Templates = () => {
                     </Button>
                     {generatedImage && (
                       <div className="rounded-xl overflow-hidden border border-slate-200">
-                        <img 
-                          src={`data:${generatedImage.mime_type};base64,${generatedImage.image_data}`}
-                          alt="Generated" 
+                        <img
+                          src={generatedImage.image_url}
+                          alt="Generated"
                           className="w-full h-48 object-cover"
                         />
                         <div className="p-3 bg-slate-50 text-sm text-slate-600">
@@ -306,8 +306,8 @@ const Templates = () => {
                     )}
                   </TabsContent>
 
-                  <Button 
-                    type="submit" 
+                  <Button
+                    type="submit"
                     className="w-full bg-indigo-600 hover:bg-indigo-700 text-white"
                     data-testid="save-template-btn"
                   >
@@ -328,7 +328,7 @@ const Templates = () => {
               </div>
               <h3 className="text-lg font-semibold text-slate-900 font-heading">No templates yet</h3>
               <p className="text-slate-500 mt-1">Upload your own or generate with AI</p>
-              <Button 
+              <Button
                 className="mt-6 bg-indigo-600 hover:bg-indigo-700 text-white"
                 onClick={() => setDialogOpen(true)}
               >
@@ -340,13 +340,13 @@ const Templates = () => {
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
             {templates.map((template) => (
-              <Card 
-                key={template.template_id} 
+              <Card
+                key={template.template_id}
                 className="template-card group"
               >
                 <div className="aspect-square relative">
-                  <img 
-                    src={template.image_url} 
+                  <img
+                    src={template.image_url}
                     alt={template.name}
                     className="w-full h-full object-cover"
                     onError={(e) => {
@@ -359,8 +359,8 @@ const Templates = () => {
                         <Download className="w-4 h-4 mr-1" />
                         Use
                       </Button>
-                      <Button 
-                        size="sm" 
+                      <Button
+                        size="sm"
                         variant="destructive"
                         onClick={() => deleteTemplate(template.template_id)}
                         data-testid={`delete-template-${template.template_id}`}

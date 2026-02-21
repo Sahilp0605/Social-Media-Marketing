@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import DashboardLayout from "@/components/DashboardLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -6,10 +6,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
-import { 
-  Plus, 
-  Sparkles, 
-  Hash, 
+import {
+  Plus,
+  Sparkles,
+  Hash,
   Image as ImageIcon,
   Calendar,
   Send,
@@ -42,6 +42,8 @@ const PostCreator = () => {
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [generating, setGenerating] = useState({ caption: false, hashtags: false });
+  const [submitting, setSubmitting] = useState({ draft: false, published: false });
+  const submitType = useRef("draft");
   const [form, setForm] = useState({
     title: "",
     caption: "",
@@ -70,6 +72,8 @@ const PostCreator = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    const actionStatus = submitType.current;
+    setSubmitting({ ...submitting, [actionStatus]: true });
     try {
       const payload = {
         title: form.title,
@@ -78,15 +82,17 @@ const PostCreator = () => {
         platforms: form.platforms,
         image_url: form.image_url || null,
         scheduled_at: form.scheduled_at || null,
-        status: form.status
+        status: actionStatus
       };
       await axios.post(`${API}/posts`, payload, { withCredentials: true });
-      toast.success("Post created successfully!");
+      toast.success(actionStatus === 'published' ? "Post published successfully!" : "Draft saved successfully!");
       setDialogOpen(false);
       resetForm();
       fetchPosts();
     } catch (err) {
       toast.error(err.response?.data?.detail || "Failed to create post");
+    } finally {
+      setSubmitting({ draft: false, published: false });
     }
   };
 
@@ -118,14 +124,14 @@ const PostCreator = () => {
       toast.error("Please enter a title or caption first");
       return;
     }
-    
+
     setGenerating({ ...generating, [type]: true });
     try {
       const res = await axios.post(`${API}/ai/generate`, {
         prompt: form.title || form.caption,
         type: type
       }, { withCredentials: true });
-      
+
       if (type === "caption") {
         setForm({ ...form, caption: res.data.result });
         toast.success("Caption generated!");
@@ -212,9 +218,9 @@ const PostCreator = () => {
                 <div>
                   <div className="flex items-center justify-between mb-1.5">
                     <Label htmlFor="caption">Caption</Label>
-                    <Button 
+                    <Button
                       type="button"
-                      variant="ghost" 
+                      variant="ghost"
                       size="sm"
                       className="text-violet-600 hover:text-violet-700"
                       onClick={() => generateAI("caption")}
@@ -244,9 +250,9 @@ const PostCreator = () => {
                 <div>
                   <div className="flex items-center justify-between mb-1.5">
                     <Label>Hashtags</Label>
-                    <Button 
+                    <Button
                       type="button"
-                      variant="ghost" 
+                      variant="ghost"
                       size="sm"
                       className="text-violet-600 hover:text-violet-700"
                       onClick={() => generateAI("hashtags")}
@@ -274,13 +280,13 @@ const PostCreator = () => {
                   {form.hashtags.length > 0 && (
                     <div className="flex flex-wrap gap-2 mt-2">
                       {form.hashtags.map((tag, idx) => (
-                        <span 
+                        <span
                           key={idx}
                           className="inline-flex items-center gap-1 px-2.5 py-1 bg-indigo-50 text-indigo-700 rounded-full text-sm"
                         >
                           #{tag}
-                          <button 
-                            type="button" 
+                          <button
+                            type="button"
                             onClick={() => removeHashtag(tag)}
                             className="hover:text-indigo-900"
                           >
@@ -318,11 +324,10 @@ const PostCreator = () => {
                         key={platform.id}
                         type="button"
                         onClick={() => togglePlatform(platform.id)}
-                        className={`flex items-center gap-2 px-4 py-2 rounded-lg border transition-all ${
-                          form.platforms.includes(platform.id)
-                            ? 'border-indigo-300 bg-indigo-50 text-indigo-700'
-                            : 'border-slate-200 hover:border-slate-300'
-                        }`}
+                        className={`flex items-center gap-2 px-4 py-2 rounded-lg border transition-all ${form.platforms.includes(platform.id)
+                          ? 'border-indigo-300 bg-indigo-50 text-indigo-700'
+                          : 'border-slate-200 hover:border-slate-300'
+                          }`}
                         data-testid={`platform-${platform.id}`}
                       >
                         <div className={`w-6 h-6 rounded bg-gradient-to-r ${platform.color} flex items-center justify-center`}>
@@ -349,21 +354,24 @@ const PostCreator = () => {
 
                 {/* Actions */}
                 <div className="flex gap-3 pt-4">
-                  <Button 
-                    type="submit" 
+                  <Button
+                    type="submit"
                     className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white"
+                    onClick={() => { submitType.current = 'draft'; }}
+                    disabled={submitting.draft || submitting.published}
                     data-testid="save-post-btn"
                   >
-                    <Save className="w-4 h-4 mr-2" />
+                    {submitting.draft ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
                     Save Draft
                   </Button>
-                  <Button 
-                    type="button" 
+                  <Button
+                    type="submit"
                     className="flex-1 bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700 text-white"
-                    onClick={() => { setForm({ ...form, status: 'published' }); }}
+                    onClick={() => { submitType.current = 'published'; }}
+                    disabled={submitting.draft || submitting.published}
                     data-testid="publish-post-btn"
                   >
-                    <Send className="w-4 h-4 mr-2" />
+                    {submitting.published ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Send className="w-4 h-4 mr-2" />}
                     Publish Now
                   </Button>
                 </div>
@@ -381,7 +389,7 @@ const PostCreator = () => {
               </div>
               <h3 className="text-lg font-semibold text-slate-900 font-heading">No posts yet</h3>
               <p className="text-slate-500 mt-1">Create your first post with AI-powered captions</p>
-              <Button 
+              <Button
                 className="mt-6 bg-indigo-600 hover:bg-indigo-700 text-white"
                 onClick={() => setDialogOpen(true)}
               >
@@ -397,15 +405,14 @@ const PostCreator = () => {
                 <CardContent className="p-5">
                   <div className="flex items-start justify-between mb-3">
                     <h3 className="font-semibold text-slate-900 font-heading">{post.title}</h3>
-                    <span className={`status-badge ${
-                      post.status === 'published' ? 'status-published' : 
+                    <span className={`status-badge ${post.status === 'published' ? 'status-published' :
                       post.status === 'scheduled' ? 'status-scheduled' : 'status-draft'
-                    }`}>
+                      }`}>
                       {post.status}
                     </span>
                   </div>
                   <p className="text-sm text-slate-600 line-clamp-3">{post.caption}</p>
-                  
+
                   {post.hashtags?.length > 0 && (
                     <div className="flex flex-wrap gap-1 mt-3">
                       {post.hashtags.slice(0, 4).map((tag, idx) => (
@@ -423,8 +430,8 @@ const PostCreator = () => {
                         const platform = platforms.find(pl => pl.id === p);
                         if (!platform) return null;
                         return (
-                          <div 
-                            key={p} 
+                          <div
+                            key={p}
                             className={`w-6 h-6 rounded bg-gradient-to-r ${platform.color} flex items-center justify-center`}
                           >
                             <platform.icon className="w-3 h-3 text-white" />
@@ -432,9 +439,9 @@ const PostCreator = () => {
                         );
                       })}
                     </div>
-                    <Button 
-                      variant="ghost" 
-                      size="sm" 
+                    <Button
+                      variant="ghost"
+                      size="sm"
                       className="text-red-500 hover:text-red-600 hover:bg-red-50"
                       onClick={() => deletePost(post.post_id)}
                       data-testid={`delete-post-${post.post_id}`}
