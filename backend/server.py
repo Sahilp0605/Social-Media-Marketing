@@ -6,7 +6,7 @@ import os
 import logging
 from pathlib import Path
 from pydantic import BaseModel, Field, ConfigDict, EmailStr
-from typing import List, Optional
+from typing import List, Optional, Dict
 import uuid
 from datetime import datetime, timezone, timedelta
 import jwt
@@ -26,6 +26,10 @@ db = client[os.environ['DB_NAME']]
 JWT_SECRET = os.environ.get('JWT_SECRET', 'socialflow_secret_key')
 JWT_ALGORITHM = "HS256"
 
+# Payment Configuration
+PAYMENT_MODE = os.environ.get('PAYMENT_MODE', 'mock')  # 'mock' or 'stripe'
+STRIPE_API_KEY = os.environ.get('STRIPE_API_KEY', '')
+
 # Create the main app
 app = FastAPI(title="SocialFlow AI API")
 
@@ -35,6 +39,74 @@ api_router = APIRouter(prefix="/api")
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
+
+# ================== PLAN CONFIGURATION ==================
+
+PLANS = {
+    "free": {
+        "name": "Free Trial",
+        "price": 0,
+        "duration_days": 14,
+        "limits": {
+            "social_accounts": 15,
+            "posts_per_month": -1,  # unlimited during trial
+            "templates": 50,
+            "landing_pages": 20,
+            "ai_generations_per_month": 100,
+            "ai_content": True,
+            "lead_capture": True,
+            "analytics": "advanced",
+            "support": "priority"
+        }
+    },
+    "starter": {
+        "name": "Starter",
+        "price": 29.00,
+        "limits": {
+            "social_accounts": 5,
+            "posts_per_month": 100,
+            "templates": 10,
+            "landing_pages": 5,
+            "ai_generations_per_month": 0,
+            "ai_content": False,
+            "lead_capture": False,
+            "analytics": "basic",
+            "support": "email"
+        }
+    },
+    "professional": {
+        "name": "Professional",
+        "price": 79.00,
+        "limits": {
+            "social_accounts": 15,
+            "posts_per_month": -1,  # unlimited
+            "templates": 50,
+            "landing_pages": 20,
+            "ai_generations_per_month": 100,
+            "ai_content": True,
+            "lead_capture": True,
+            "analytics": "advanced",
+            "support": "priority"
+        }
+    },
+    "enterprise": {
+        "name": "Enterprise",
+        "price": 199.00,
+        "limits": {
+            "social_accounts": -1,  # unlimited
+            "posts_per_month": -1,
+            "templates": -1,
+            "landing_pages": -1,
+            "ai_generations_per_month": -1,
+            "ai_content": True,
+            "lead_capture": True,
+            "analytics": "advanced",
+            "white_label": True,
+            "api_access": True,
+            "support": "dedicated"
+        }
+    }
+}
 
 # ================== MODELS ==================
 
@@ -54,6 +126,8 @@ class UserResponse(BaseModel):
     name: str
     picture: Optional[str] = None
     role: str = "user"
+    plan: str = "free"
+    plan_expires_at: Optional[str] = None
     created_at: str
 
 class PostCreate(BaseModel):
@@ -78,6 +152,8 @@ class PostResponse(BaseModel):
     status: str
     views: int = 0
     clicks: int = 0
+    likes: int = 0
+    shares: int = 0
     created_at: str
 
 class TemplateCreate(BaseModel):
@@ -85,6 +161,7 @@ class TemplateCreate(BaseModel):
     category: str
     image_url: str
     description: Optional[str] = None
+    canvas_data: Optional[str] = None  # JSON string for fabric.js canvas
 
 class TemplateResponse(BaseModel):
     model_config = ConfigDict(extra="ignore")
@@ -94,6 +171,7 @@ class TemplateResponse(BaseModel):
     category: str
     image_url: str
     description: Optional[str]
+    canvas_data: Optional[str] = None
     is_ai_generated: bool = False
     created_at: str
 
@@ -161,9 +239,40 @@ class CampaignResponse(BaseModel):
     status: str = "active"
     created_at: str
 
+class SocialAccountCreate(BaseModel):
+    platform: str
+    account_name: str
+    account_id: Optional[str] = None
+
+class SocialAccountResponse(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    account_id: str
+    user_id: str
+    platform: str
+    account_name: str
+    external_id: Optional[str]
+    is_connected: bool = True
+    created_at: str
+
 class AIGenerateRequest(BaseModel):
     prompt: str
     type: str  # "caption", "hashtags", "image"
+
+class CheckoutRequest(BaseModel):
+    plan_id: str
+    origin_url: str
+
+class UsageResponse(BaseModel):
+    posts_this_month: int
+    posts_limit: int
+    templates_count: int
+    templates_limit: int
+    landing_pages_count: int
+    landing_pages_limit: int
+    ai_generations_this_month: int
+    ai_generations_limit: int
+    social_accounts_count: int
+    social_accounts_limit: int
 
 # ================== AUTH HELPERS ==================
 
@@ -211,6 +320,137 @@ async def get_current_user(request: Request) -> dict:
     
     return user
 
+# ================== PLAN HELPERS ==================
+
+async def get_user_plan(user: dict) -> dict:
+    """Get user's current plan with limits"""
+    plan_id = user.get("plan", "free")
+    plan_expires_at = user.get("plan_expires_at")
+    
+    # Check if plan has expired
+    if plan_expires_at:
+        if isinstance(plan_expires_at, str):
+            plan_expires_at = datetime.fromisoformat(plan_expires_at)
+        if plan_expires_at.tzinfo is None:
+            plan_expires_at = plan_expires_at.replace(tzinfo=timezone.utc)
+        
+        if plan_expires_at < datetime.now(timezone.utc):
+            # Plan expired, revert to limited free
+            plan_id = "expired"
+            return {
+                "plan_id": "expired",
+                "name": "Expired",
+                "limits": {
+                    "social_accounts": 1,
+                    "posts_per_month": 10,
+                    "templates": 3,
+                    "landing_pages": 1,
+                    "ai_generations_per_month": 0,
+                    "ai_content": False,
+                    "lead_capture": False,
+                    "analytics": "basic",
+                    "support": "email"
+                }
+            }
+    
+    plan = PLANS.get(plan_id, PLANS["free"])
+    return {"plan_id": plan_id, **plan}
+
+async def get_user_usage(user_id: str) -> dict:
+    """Get user's current usage stats"""
+    now = datetime.now(timezone.utc)
+    month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    
+    # Count posts this month
+    posts_count = await db.posts.count_documents({
+        "user_id": user_id,
+        "created_at": {"$gte": month_start.isoformat()}
+    })
+    
+    # Count templates
+    templates_count = await db.templates.count_documents({"user_id": user_id})
+    
+    # Count landing pages
+    landing_pages_count = await db.landing_pages.count_documents({"user_id": user_id})
+    
+    # Count AI generations this month
+    ai_generations = await db.ai_usage.count_documents({
+        "user_id": user_id,
+        "created_at": {"$gte": month_start.isoformat()}
+    })
+    
+    # Count social accounts
+    social_accounts_count = await db.social_accounts.count_documents({"user_id": user_id})
+    
+    return {
+        "posts_this_month": posts_count,
+        "templates_count": templates_count,
+        "landing_pages_count": landing_pages_count,
+        "ai_generations_this_month": ai_generations,
+        "social_accounts_count": social_accounts_count
+    }
+
+async def check_plan_limit(user: dict, resource: str, current_count: int = None) -> bool:
+    """Check if user can perform action based on plan limits"""
+    plan = await get_user_plan(user)
+    limits = plan.get("limits", {})
+    
+    if resource == "posts":
+        limit = limits.get("posts_per_month", 0)
+        if limit == -1:
+            return True
+        usage = await get_user_usage(user["user_id"])
+        return usage["posts_this_month"] < limit
+    
+    elif resource == "templates":
+        limit = limits.get("templates", 0)
+        if limit == -1:
+            return True
+        if current_count is not None:
+            return current_count < limit
+        usage = await get_user_usage(user["user_id"])
+        return usage["templates_count"] < limit
+    
+    elif resource == "landing_pages":
+        limit = limits.get("landing_pages", 0)
+        if limit == -1:
+            return True
+        if current_count is not None:
+            return current_count < limit
+        usage = await get_user_usage(user["user_id"])
+        return usage["landing_pages_count"] < limit
+    
+    elif resource == "ai_generations":
+        limit = limits.get("ai_generations_per_month", 0)
+        if limit == -1:
+            return True
+        if not limits.get("ai_content", False):
+            return False
+        usage = await get_user_usage(user["user_id"])
+        return usage["ai_generations_this_month"] < limit
+    
+    elif resource == "social_accounts":
+        limit = limits.get("social_accounts", 0)
+        if limit == -1:
+            return True
+        if current_count is not None:
+            return current_count < limit
+        usage = await get_user_usage(user["user_id"])
+        return usage["social_accounts_count"] < limit
+    
+    elif resource == "lead_capture":
+        return limits.get("lead_capture", False)
+    
+    return False
+
+async def track_ai_usage(user_id: str, usage_type: str):
+    """Track AI generation usage"""
+    await db.ai_usage.insert_one({
+        "user_id": user_id,
+        "type": usage_type,
+        "created_at": datetime.now(timezone.utc).isoformat()
+    })
+
 # ================== AUTH ROUTES ==================
 
 @api_router.post("/auth/register")
@@ -221,7 +461,10 @@ async def register(user_data: UserCreate, response: Response):
         raise HTTPException(status_code=400, detail="Email already registered")
     
     user_id = f"user_{uuid.uuid4().hex[:12]}"
-    now = datetime.now(timezone.utc).isoformat()
+    now = datetime.now(timezone.utc)
+    
+    # Set free trial expiry (14 days)
+    trial_expires = (now + timedelta(days=14)).isoformat()
     
     user_doc = {
         "user_id": user_id,
@@ -230,7 +473,9 @@ async def register(user_data: UserCreate, response: Response):
         "password_hash": hash_password(user_data.password),
         "picture": None,
         "role": "user",
-        "created_at": now
+        "plan": "free",
+        "plan_expires_at": trial_expires,
+        "created_at": now.isoformat()
     }
     await db.users.insert_one(user_doc)
     
@@ -239,8 +484,8 @@ async def register(user_data: UserCreate, response: Response):
     session_doc = {
         "user_id": user_id,
         "session_token": session_token,
-        "expires_at": (datetime.now(timezone.utc) + timedelta(days=7)).isoformat(),
-        "created_at": now
+        "expires_at": (now + timedelta(days=7)).isoformat(),
+        "created_at": now.isoformat()
     }
     await db.user_sessions.insert_one(session_doc)
     
@@ -260,7 +505,9 @@ async def register(user_data: UserCreate, response: Response):
         "name": user_data.name,
         "picture": None,
         "role": "user",
-        "created_at": now
+        "plan": "free",
+        "plan_expires_at": trial_expires,
+        "created_at": now.isoformat()
     }
 
 @api_router.post("/auth/login")
@@ -296,6 +543,8 @@ async def login(user_data: UserLogin, response: Response):
         "name": user["name"],
         "picture": user.get("picture"),
         "role": user.get("role", "user"),
+        "plan": user.get("plan", "free"),
+        "plan_expires_at": user.get("plan_expires_at"),
         "created_at": user["created_at"]
     }
 
@@ -320,17 +569,20 @@ async def exchange_session(request: Request, response: Response):
     
     # Check if user exists, create if not
     user = await db.users.find_one({"email": oauth_data["email"]}, {"_id": 0})
-    now = datetime.now(timezone.utc).isoformat()
+    now = datetime.now(timezone.utc)
     
     if not user:
         user_id = f"user_{uuid.uuid4().hex[:12]}"
+        trial_expires = (now + timedelta(days=14)).isoformat()
         user = {
             "user_id": user_id,
             "email": oauth_data["email"],
             "name": oauth_data["name"],
             "picture": oauth_data.get("picture"),
             "role": "user",
-            "created_at": now
+            "plan": "free",
+            "plan_expires_at": trial_expires,
+            "created_at": now.isoformat()
         }
         await db.users.insert_one(user)
     else:
@@ -348,8 +600,8 @@ async def exchange_session(request: Request, response: Response):
     session_doc = {
         "user_id": user_id,
         "session_token": session_token,
-        "expires_at": (datetime.now(timezone.utc) + timedelta(days=7)).isoformat(),
-        "created_at": now
+        "expires_at": (now + timedelta(days=7)).isoformat(),
+        "created_at": now.isoformat()
     }
     await db.user_sessions.insert_one(session_doc)
     
@@ -369,6 +621,8 @@ async def exchange_session(request: Request, response: Response):
         "name": user["name"],
         "picture": user.get("picture"),
         "role": user.get("role", "user"),
+        "plan": user.get("plan", "free"),
+        "plan_expires_at": user.get("plan_expires_at"),
         "created_at": user["created_at"]
     }
 
@@ -380,6 +634,8 @@ async def get_me(user: dict = Depends(get_current_user)):
         "name": user["name"],
         "picture": user.get("picture"),
         "role": user.get("role", "user"),
+        "plan": user.get("plan", "free"),
+        "plan_expires_at": user.get("plan_expires_at"),
         "created_at": user["created_at"]
     }
 
@@ -391,10 +647,302 @@ async def logout(request: Request, response: Response):
     response.delete_cookie("session_token", path="/")
     return {"message": "Logged out"}
 
+# ================== SUBSCRIPTION ROUTES ==================
+
+@api_router.get("/plans")
+async def get_plans():
+    """Get all available plans"""
+    return {
+        "plans": [
+            {"id": "starter", **PLANS["starter"]},
+            {"id": "professional", **PLANS["professional"]},
+            {"id": "enterprise", **PLANS["enterprise"]}
+        ],
+        "payment_mode": PAYMENT_MODE
+    }
+
+@api_router.get("/subscription")
+async def get_subscription(user: dict = Depends(get_current_user)):
+    """Get user's current subscription"""
+    plan = await get_user_plan(user)
+    usage = await get_user_usage(user["user_id"])
+    limits = plan.get("limits", {})
+    
+    return {
+        "plan": plan,
+        "usage": {
+            "posts_this_month": usage["posts_this_month"],
+            "posts_limit": limits.get("posts_per_month", 0),
+            "templates_count": usage["templates_count"],
+            "templates_limit": limits.get("templates", 0),
+            "landing_pages_count": usage["landing_pages_count"],
+            "landing_pages_limit": limits.get("landing_pages", 0),
+            "ai_generations_this_month": usage["ai_generations_this_month"],
+            "ai_generations_limit": limits.get("ai_generations_per_month", 0),
+            "social_accounts_count": usage["social_accounts_count"],
+            "social_accounts_limit": limits.get("social_accounts", 0)
+        },
+        "expires_at": user.get("plan_expires_at")
+    }
+
+@api_router.post("/subscription/checkout")
+async def create_checkout(req: CheckoutRequest, request: Request, user: dict = Depends(get_current_user)):
+    """Create checkout session for plan upgrade"""
+    if req.plan_id not in PLANS or req.plan_id == "free":
+        raise HTTPException(status_code=400, detail="Invalid plan")
+    
+    plan = PLANS[req.plan_id]
+    amount = plan["price"]
+    
+    now = datetime.now(timezone.utc)
+    transaction_id = f"txn_{uuid.uuid4().hex[:12]}"
+    
+    if PAYMENT_MODE == "mock":
+        # Mock payment - create pending transaction
+        await db.payment_transactions.insert_one({
+            "transaction_id": transaction_id,
+            "user_id": user["user_id"],
+            "plan_id": req.plan_id,
+            "amount": amount,
+            "currency": "usd",
+            "status": "pending",
+            "payment_status": "pending",
+            "session_id": f"mock_session_{uuid.uuid4().hex[:8]}",
+            "created_at": now.isoformat()
+        })
+        
+        # Return mock checkout URL
+        success_url = f"{req.origin_url}/subscription/success?session_id={transaction_id}"
+        return {
+            "url": success_url,
+            "session_id": transaction_id,
+            "mode": "mock"
+        }
+    else:
+        # Stripe payment
+        from emergentintegrations.payments.stripe.checkout import StripeCheckout, CheckoutSessionRequest
+        
+        host_url = str(request.base_url)
+        webhook_url = f"{host_url}api/webhook/stripe"
+        
+        stripe_checkout = StripeCheckout(api_key=STRIPE_API_KEY, webhook_url=webhook_url)
+        
+        success_url = f"{req.origin_url}/subscription/success?session_id={{CHECKOUT_SESSION_ID}}"
+        cancel_url = f"{req.origin_url}/subscription"
+        
+        checkout_req = CheckoutSessionRequest(
+            amount=amount,
+            currency="usd",
+            success_url=success_url,
+            cancel_url=cancel_url,
+            metadata={
+                "user_id": user["user_id"],
+                "plan_id": req.plan_id,
+                "transaction_id": transaction_id
+            }
+        )
+        
+        session = await stripe_checkout.create_checkout_session(checkout_req)
+        
+        # Create pending transaction
+        await db.payment_transactions.insert_one({
+            "transaction_id": transaction_id,
+            "user_id": user["user_id"],
+            "plan_id": req.plan_id,
+            "amount": amount,
+            "currency": "usd",
+            "status": "pending",
+            "payment_status": "pending",
+            "session_id": session.session_id,
+            "created_at": now.isoformat()
+        })
+        
+        return {
+            "url": session.url,
+            "session_id": session.session_id,
+            "mode": "stripe"
+        }
+
+@api_router.get("/subscription/status/{session_id}")
+async def get_checkout_status(session_id: str, user: dict = Depends(get_current_user)):
+    """Get checkout session status and activate plan if paid"""
+    # Find transaction
+    transaction = await db.payment_transactions.find_one(
+        {"$or": [{"session_id": session_id}, {"transaction_id": session_id}]},
+        {"_id": 0}
+    )
+    
+    if not transaction:
+        raise HTTPException(status_code=404, detail="Transaction not found")
+    
+    # Check if already processed
+    if transaction.get("payment_status") == "paid":
+        return {
+            "status": "complete",
+            "payment_status": "paid",
+            "plan_id": transaction.get("plan_id")
+        }
+    
+    if PAYMENT_MODE == "mock":
+        # Mock mode - auto-complete payment
+        now = datetime.now(timezone.utc)
+        plan_expires = (now + timedelta(days=30)).isoformat()
+        
+        # Update transaction
+        await db.payment_transactions.update_one(
+            {"transaction_id": transaction.get("transaction_id", session_id)},
+            {"$set": {"status": "complete", "payment_status": "paid"}}
+        )
+        
+        # Upgrade user plan
+        await db.users.update_one(
+            {"user_id": user["user_id"]},
+            {"$set": {
+                "plan": transaction["plan_id"],
+                "plan_expires_at": plan_expires
+            }}
+        )
+        
+        return {
+            "status": "complete",
+            "payment_status": "paid",
+            "plan_id": transaction["plan_id"]
+        }
+    else:
+        # Stripe - check actual status
+        from emergentintegrations.payments.stripe.checkout import StripeCheckout
+        
+        stripe_checkout = StripeCheckout(api_key=STRIPE_API_KEY, webhook_url="")
+        status = await stripe_checkout.get_checkout_status(session_id)
+        
+        if status.payment_status == "paid":
+            now = datetime.now(timezone.utc)
+            plan_expires = (now + timedelta(days=30)).isoformat()
+            
+            # Update transaction
+            await db.payment_transactions.update_one(
+                {"session_id": session_id},
+                {"$set": {"status": "complete", "payment_status": "paid"}}
+            )
+            
+            # Upgrade user plan
+            await db.users.update_one(
+                {"user_id": user["user_id"]},
+                {"$set": {
+                    "plan": transaction["plan_id"],
+                    "plan_expires_at": plan_expires
+                }}
+            )
+        
+        return {
+            "status": status.status,
+            "payment_status": status.payment_status,
+            "plan_id": transaction["plan_id"] if status.payment_status == "paid" else None
+        }
+
+@api_router.post("/webhook/stripe")
+async def stripe_webhook(request: Request):
+    """Handle Stripe webhooks"""
+    if PAYMENT_MODE == "mock":
+        return {"status": "ignored"}
+    
+    from emergentintegrations.payments.stripe.checkout import StripeCheckout
+    
+    body = await request.body()
+    signature = request.headers.get("Stripe-Signature")
+    
+    stripe_checkout = StripeCheckout(api_key=STRIPE_API_KEY, webhook_url="")
+    
+    try:
+        event = await stripe_checkout.handle_webhook(body, signature)
+        
+        if event.payment_status == "paid":
+            # Find and update transaction
+            transaction = await db.payment_transactions.find_one(
+                {"session_id": event.session_id},
+                {"_id": 0}
+            )
+            
+            if transaction and transaction.get("payment_status") != "paid":
+                now = datetime.now(timezone.utc)
+                plan_expires = (now + timedelta(days=30)).isoformat()
+                
+                await db.payment_transactions.update_one(
+                    {"session_id": event.session_id},
+                    {"$set": {"status": "complete", "payment_status": "paid"}}
+                )
+                
+                await db.users.update_one(
+                    {"user_id": transaction["user_id"]},
+                    {"$set": {
+                        "plan": transaction["plan_id"],
+                        "plan_expires_at": plan_expires
+                    }}
+                )
+        
+        return {"status": "processed"}
+    except Exception as e:
+        logger.error(f"Webhook error: {e}")
+        return {"status": "error"}
+
+@api_router.get("/admin/payment-mode")
+async def get_payment_mode():
+    """Get current payment mode"""
+    return {"mode": PAYMENT_MODE}
+
+@api_router.post("/admin/payment-mode")
+async def set_payment_mode(mode: str):
+    """Set payment mode (mock/stripe) - Admin only"""
+    global PAYMENT_MODE
+    if mode not in ["mock", "stripe"]:
+        raise HTTPException(status_code=400, detail="Invalid mode")
+    PAYMENT_MODE = mode
+    # Also update .env file
+    return {"mode": PAYMENT_MODE}
+
+# ================== SOCIAL ACCOUNTS ROUTES ==================
+
+@api_router.post("/social-accounts", response_model=SocialAccountResponse)
+async def create_social_account(account: SocialAccountCreate, user: dict = Depends(get_current_user)):
+    # Check plan limit
+    if not await check_plan_limit(user, "social_accounts"):
+        raise HTTPException(status_code=403, detail="Social accounts limit reached. Please upgrade your plan.")
+    
+    account_id = f"sa_{uuid.uuid4().hex[:12]}"
+    now = datetime.now(timezone.utc).isoformat()
+    
+    account_doc = {
+        "account_id": account_id,
+        "user_id": user["user_id"],
+        "platform": account.platform,
+        "account_name": account.account_name,
+        "external_id": account.account_id,
+        "is_connected": True,
+        "created_at": now
+    }
+    await db.social_accounts.insert_one(account_doc)
+    return SocialAccountResponse(**account_doc)
+
+@api_router.get("/social-accounts", response_model=List[SocialAccountResponse])
+async def get_social_accounts(user: dict = Depends(get_current_user)):
+    accounts = await db.social_accounts.find({"user_id": user["user_id"]}, {"_id": 0}).to_list(100)
+    return [SocialAccountResponse(**a) for a in accounts]
+
+@api_router.delete("/social-accounts/{account_id}")
+async def delete_social_account(account_id: str, user: dict = Depends(get_current_user)):
+    result = await db.social_accounts.delete_one({"account_id": account_id, "user_id": user["user_id"]})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Account not found")
+    return {"message": "Account disconnected"}
+
 # ================== POSTS ROUTES ==================
 
 @api_router.post("/posts", response_model=PostResponse)
 async def create_post(post: PostCreate, user: dict = Depends(get_current_user)):
+    # Check plan limit
+    if not await check_plan_limit(user, "posts"):
+        raise HTTPException(status_code=403, detail="Posts limit reached. Please upgrade your plan.")
+    
     post_id = f"post_{uuid.uuid4().hex[:12]}"
     now = datetime.now(timezone.utc).isoformat()
     
@@ -410,6 +958,8 @@ async def create_post(post: PostCreate, user: dict = Depends(get_current_user)):
         "status": post.status,
         "views": 0,
         "clicks": 0,
+        "likes": 0,
+        "shares": 0,
         "created_at": now
     }
     await db.posts.insert_one(post_doc)
@@ -417,7 +967,7 @@ async def create_post(post: PostCreate, user: dict = Depends(get_current_user)):
 
 @api_router.get("/posts", response_model=List[PostResponse])
 async def get_posts(user: dict = Depends(get_current_user)):
-    posts = await db.posts.find({"user_id": user["user_id"]}, {"_id": 0}).to_list(1000)
+    posts = await db.posts.find({"user_id": user["user_id"]}, {"_id": 0}).sort("created_at", -1).to_list(1000)
     return [PostResponse(**p) for p in posts]
 
 @api_router.get("/posts/{post_id}", response_model=PostResponse)
@@ -445,10 +995,47 @@ async def delete_post(post_id: str, user: dict = Depends(get_current_user)):
         raise HTTPException(status_code=404, detail="Post not found")
     return {"message": "Post deleted"}
 
+@api_router.post("/posts/{post_id}/publish")
+async def publish_post(post_id: str, user: dict = Depends(get_current_user)):
+    """Mock publish post to social platforms"""
+    post = await db.posts.find_one({"post_id": post_id, "user_id": user["user_id"]}, {"_id": 0})
+    if not post:
+        raise HTTPException(status_code=404, detail="Post not found")
+    
+    # Mock publishing - simulate API calls
+    results = []
+    for platform in post.get("platforms", []):
+        # Simulate successful publishing
+        results.append({
+            "platform": platform,
+            "status": "published",
+            "external_id": f"{platform}_{uuid.uuid4().hex[:8]}",
+            "published_at": datetime.now(timezone.utc).isoformat()
+        })
+    
+    # Update post status
+    await db.posts.update_one(
+        {"post_id": post_id},
+        {"$set": {
+            "status": "published",
+            "published_at": datetime.now(timezone.utc).isoformat(),
+            "publish_results": results
+        }}
+    )
+    
+    return {
+        "message": "Post published successfully (mock)",
+        "results": results
+    }
+
 # ================== TEMPLATES ROUTES ==================
 
 @api_router.post("/templates", response_model=TemplateResponse)
 async def create_template(template: TemplateCreate, user: dict = Depends(get_current_user)):
+    # Check plan limit
+    if not await check_plan_limit(user, "templates"):
+        raise HTTPException(status_code=403, detail="Templates limit reached. Please upgrade your plan.")
+    
     template_id = f"tpl_{uuid.uuid4().hex[:12]}"
     now = datetime.now(timezone.utc).isoformat()
     
@@ -459,6 +1046,7 @@ async def create_template(template: TemplateCreate, user: dict = Depends(get_cur
         "category": template.category,
         "image_url": template.image_url,
         "description": template.description,
+        "canvas_data": template.canvas_data,
         "is_ai_generated": False,
         "created_at": now
     }
@@ -469,6 +1057,24 @@ async def create_template(template: TemplateCreate, user: dict = Depends(get_cur
 async def get_templates(user: dict = Depends(get_current_user)):
     templates = await db.templates.find({"user_id": user["user_id"]}, {"_id": 0}).to_list(1000)
     return [TemplateResponse(**t) for t in templates]
+
+@api_router.get("/templates/{template_id}", response_model=TemplateResponse)
+async def get_template(template_id: str, user: dict = Depends(get_current_user)):
+    template = await db.templates.find_one({"template_id": template_id, "user_id": user["user_id"]}, {"_id": 0})
+    if not template:
+        raise HTTPException(status_code=404, detail="Template not found")
+    return TemplateResponse(**template)
+
+@api_router.put("/templates/{template_id}", response_model=TemplateResponse)
+async def update_template(template_id: str, template: TemplateCreate, user: dict = Depends(get_current_user)):
+    existing = await db.templates.find_one({"template_id": template_id, "user_id": user["user_id"]}, {"_id": 0})
+    if not existing:
+        raise HTTPException(status_code=404, detail="Template not found")
+    
+    update_data = template.model_dump()
+    await db.templates.update_one({"template_id": template_id}, {"$set": update_data})
+    updated = await db.templates.find_one({"template_id": template_id}, {"_id": 0})
+    return TemplateResponse(**updated)
 
 @api_router.delete("/templates/{template_id}")
 async def delete_template(template_id: str, user: dict = Depends(get_current_user)):
@@ -481,6 +1087,14 @@ async def delete_template(template_id: str, user: dict = Depends(get_current_use
 
 @api_router.post("/landing-pages", response_model=LandingPageResponse)
 async def create_landing_page(page: LandingPageCreate, user: dict = Depends(get_current_user)):
+    # Check plan limit
+    plan = await get_user_plan(user)
+    if not plan.get("limits", {}).get("lead_capture", False):
+        raise HTTPException(status_code=403, detail="Lead capture pages not available on your plan. Please upgrade.")
+    
+    if not await check_plan_limit(user, "landing_pages"):
+        raise HTTPException(status_code=403, detail="Landing pages limit reached. Please upgrade your plan.")
+    
     page_id = f"page_{uuid.uuid4().hex[:12]}"
     slug = f"{page.name.lower().replace(' ', '-')}-{uuid.uuid4().hex[:6]}"
     now = datetime.now(timezone.utc).isoformat()
@@ -573,7 +1187,7 @@ async def get_leads(user: dict = Depends(get_current_user)):
     page_ids = [p["page_id"] for p in pages]
     
     # Get leads for those pages
-    leads = await db.leads.find({"page_id": {"$in": page_ids}}, {"_id": 0}).to_list(1000)
+    leads = await db.leads.find({"page_id": {"$in": page_ids}}, {"_id": 0}).sort("created_at", -1).to_list(1000)
     return [LeadResponse(**l) for l in leads]
 
 @api_router.put("/leads/{lead_id}/status")
@@ -633,6 +1247,8 @@ async def get_analytics_overview(user: dict = Depends(get_current_user)):
     total_posts = len(posts)
     total_views = sum(p.get("views", 0) for p in posts)
     total_clicks = sum(p.get("clicks", 0) for p in posts)
+    total_likes = sum(p.get("likes", 0) for p in posts)
+    total_shares = sum(p.get("shares", 0) for p in posts)
     
     # Get landing pages stats
     pages = await db.landing_pages.find({"user_id": user["user_id"]}, {"_id": 0}).to_list(1000)
@@ -650,11 +1266,17 @@ async def get_analytics_overview(user: dict = Depends(get_current_user)):
     campaigns = await db.campaigns.find({"user_id": user["user_id"]}, {"_id": 0}).to_list(1000)
     active_campaigns = len([c for c in campaigns if c.get("status") == "active"])
     
+    # Get scheduled posts
+    scheduled_posts = len([p for p in posts if p.get("status") == "scheduled"])
+    
     return {
         "posts": {
             "total": total_posts,
             "views": total_views,
-            "clicks": total_clicks
+            "clicks": total_clicks,
+            "likes": total_likes,
+            "shares": total_shares,
+            "scheduled": scheduled_posts
         },
         "landing_pages": {
             "total": total_pages,
@@ -676,6 +1298,10 @@ async def get_analytics_overview(user: dict = Depends(get_current_user)):
 
 @api_router.post("/ai/generate")
 async def generate_ai_content(req: AIGenerateRequest, user: dict = Depends(get_current_user)):
+    # Check plan limit
+    if not await check_plan_limit(user, "ai_generations"):
+        raise HTTPException(status_code=403, detail="AI generation not available or limit reached. Please upgrade your plan.")
+    
     from emergentintegrations.llm.chat import LlmChat, UserMessage
     
     api_key = os.environ.get("EMERGENT_LLM_KEY")
@@ -700,6 +1326,10 @@ async def generate_ai_content(req: AIGenerateRequest, user: dict = Depends(get_c
         chat.with_model("gemini", "gemini-3-flash-preview")
         
         response = await chat.send_message(UserMessage(text=user_msg))
+        
+        # Track AI usage
+        await track_ai_usage(user["user_id"], req.type)
+        
         return {"result": response, "type": req.type}
     except Exception as e:
         logger.error(f"AI generation error: {str(e)}")
@@ -707,6 +1337,10 @@ async def generate_ai_content(req: AIGenerateRequest, user: dict = Depends(get_c
 
 @api_router.post("/ai/generate-image")
 async def generate_ai_image(req: AIGenerateRequest, user: dict = Depends(get_current_user)):
+    # Check plan limit
+    if not await check_plan_limit(user, "ai_generations"):
+        raise HTTPException(status_code=403, detail="AI generation not available or limit reached. Please upgrade your plan.")
+    
     from emergentintegrations.llm.chat import LlmChat, UserMessage
     
     api_key = os.environ.get("EMERGENT_LLM_KEY")
@@ -725,11 +1359,12 @@ async def generate_ai_image(req: AIGenerateRequest, user: dict = Depends(get_cur
         
         text, images = await chat.send_message_multimodal_response(UserMessage(text=prompt))
         
+        # Track AI usage
+        await track_ai_usage(user["user_id"], "image")
+        
         if images and len(images) > 0:
-            # Return first image as base64 data URL
             img = images[0]
             return {
-                "image_url": f"data:{img['mime_type']};base64,{img['data'][:100]}...",
                 "image_data": img['data'],
                 "mime_type": img['mime_type'],
                 "text": text
