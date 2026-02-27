@@ -49,6 +49,7 @@ const categories = [
 ];
 
 const Templates = () => {
+  const navigate = useNavigate();
   const [templates, setTemplates] = useState([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
