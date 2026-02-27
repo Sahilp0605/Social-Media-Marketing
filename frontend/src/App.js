@@ -12,12 +12,16 @@ import AuthCallback from "@/pages/AuthCallback";
 import Dashboard from "@/pages/Dashboard";
 import PostCreator from "@/pages/PostCreator";
 import Templates from "@/pages/Templates";
+import TemplateEditor from "@/pages/TemplateEditor";
 import LandingPages from "@/pages/LandingPages";
 import Leads from "@/pages/Leads";
 import Campaigns from "@/pages/Campaigns";
 import Analytics from "@/pages/Analytics";
 import Settings from "@/pages/Settings";
+import Subscription from "@/pages/Subscription";
+import SubscriptionSuccess from "@/pages/SubscriptionSuccess";
 import PublicLandingPage from "@/pages/PublicLandingPage";
+import SocialAccounts from "@/pages/SocialAccounts";
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 export const API = `${BACKEND_URL}/api`;
