@@ -174,13 +174,22 @@ const Templates = () => {
             <h2 className="text-2xl font-bold text-slate-900 font-heading">Templates</h2>
             <p className="text-slate-500 mt-1">Create templates manually or generate with AI</p>
           </div>
-          <Dialog open={dialogOpen} onOpenChange={(open) => { setDialogOpen(open); if (!open) resetForm(); }}>
-            <DialogTrigger asChild>
-              <Button className="bg-indigo-600 hover:bg-indigo-700 text-white" data-testid="create-template-btn">
-                <Plus className="w-5 h-5 mr-2" />
-                Create Template
-              </Button>
-            </DialogTrigger>
+          <div className="flex gap-2">
+            <Button 
+              variant="outline" 
+              onClick={() => navigate("/templates/editor")}
+              data-testid="open-editor-btn"
+            >
+              <Pencil className="w-5 h-5 mr-2" />
+              Design Editor
+            </Button>
+            <Dialog open={dialogOpen} onOpenChange={(open) => { setDialogOpen(open); if (!open) resetForm(); }}>
+              <DialogTrigger asChild>
+                <Button className="bg-indigo-600 hover:bg-indigo-700 text-white" data-testid="create-template-btn">
+                  <Plus className="w-5 h-5 mr-2" />
+                  Quick Create
+                </Button>
+              </DialogTrigger>
             <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
               <DialogHeader>
                 <DialogTitle className="font-heading">Create Template</DialogTitle>
