@@ -124,8 +124,7 @@ const TemplateEditor = () => {
     fabricCanvasRef.current.setActiveObject(text);
   };
 
-  const addShape = async (type) => {
-    const fabric = (await import('fabric')).fabric;
+  const addShape = (type) => {
     let shape;
     
     if (type === 'rect') {
@@ -153,8 +152,7 @@ const TemplateEditor = () => {
     }
   };
 
-  const addImage = async (url) => {
-    const fabric = (await import('fabric')).fabric;
+  const addImage = (url) => {
     fabric.Image.fromURL(url, (img) => {
       img.scaleToWidth(300);
       fabricCanvasRef.current.add(img);
