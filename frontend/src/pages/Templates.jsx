@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import DashboardLayout from "@/components/DashboardLayout";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -12,7 +13,8 @@ import {
   Trash2,
   Loader2,
   Image as ImageIcon,
-  Download
+  Download,
+  Pencil
 } from "lucide-react";
 import { toast } from "sonner";
 import axios from "axios";
