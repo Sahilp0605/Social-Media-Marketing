@@ -76,10 +76,7 @@ const TemplateEditor = () => {
     };
   }, [templateId]);
 
-  const initCanvas = async () => {
-    // Dynamically import fabric
-    const fabric = (await import('fabric')).fabric;
-    
+  const initCanvas = () => {
     if (fabricCanvasRef.current) {
       fabricCanvasRef.current.dispose();
     }
@@ -106,7 +103,6 @@ const TemplateEditor = () => {
       setCategory(res.data.category);
       
       if (res.data.canvas_data) {
-        const fabric = (await import('fabric')).fabric;
         fabricCanvasRef.current.loadFromJSON(res.data.canvas_data, () => {
           fabricCanvasRef.current.renderAll();
         });
@@ -116,8 +112,7 @@ const TemplateEditor = () => {
     }
   };
 
-  const addText = async () => {
-    const fabric = (await import('fabric')).fabric;
+  const addText = () => {
     const text = new fabric.IText('Your Text Here', {
       left: 100,
       top: 100,
