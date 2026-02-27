@@ -13,7 +13,9 @@ import {
   Settings,
   LogOut,
   ChevronLeft,
-  Menu
+  Menu,
+  Link as LinkIcon,
+  CreditCard
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -32,7 +34,9 @@ const navItems = [
   { path: "/landing-pages", icon: Globe, label: "Landing Pages" },
   { path: "/leads", icon: Users, label: "Leads" },
   { path: "/campaigns", icon: Megaphone, label: "Campaigns" },
+  { path: "/social-accounts", icon: LinkIcon, label: "Social Accounts" },
   { path: "/analytics", icon: BarChart3, label: "Analytics" },
+  { path: "/subscription", icon: CreditCard, label: "Subscription" },
 ];
 
 const DashboardLayout = ({ children }) => {
