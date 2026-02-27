@@ -329,6 +329,7 @@ const Templates = () => {
               </Tabs>
             </DialogContent>
           </Dialog>
+          </div>
         </div>
 
         {/* Templates Grid */}
