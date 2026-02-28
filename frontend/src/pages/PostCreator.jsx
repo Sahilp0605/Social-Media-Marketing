@@ -5,7 +5,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Checkbox } from "@/components/ui/checkbox";
 import { 
   Plus, 
   Sparkles, 
@@ -18,7 +17,11 @@ import {
   Instagram,
   Facebook,
   Linkedin,
-  Loader2
+  Loader2,
+  Clock,
+  CheckCircle,
+  Play,
+  Eye
 } from "lucide-react";
 import { toast } from "sonner";
 import axios from "axios";
@@ -42,6 +45,8 @@ const PostCreator = () => {
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [generating, setGenerating] = useState({ caption: false, hashtags: false });
+  const [publishing, setPublishing] = useState({});
+  const [processingScheduler, setProcessingScheduler] = useState(false);
   const [form, setForm] = useState({
     title: "",
     caption: "",
@@ -68,7 +73,7 @@ const PostCreator = () => {
     }
   };
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = async (e, publishNow = false) => {
     e.preventDefault();
     try {
       const payload = {
@@ -78,15 +83,56 @@ const PostCreator = () => {
         platforms: form.platforms,
         image_url: form.image_url || null,
         scheduled_at: form.scheduled_at || null,
-        status: form.status
+        status: publishNow ? "published" : (form.scheduled_at ? "scheduled" : "draft")
       };
-      await axios.post(`${API}/posts`, payload, { withCredentials: true });
-      toast.success("Post created successfully!");
+      
+      const res = await axios.post(`${API}/posts`, payload, { withCredentials: true });
+      
+      if (publishNow) {
+        // Immediately publish the post
+        await axios.post(`${API}/posts/${res.data.post_id}/publish`, {}, { withCredentials: true });
+        toast.success("Post published successfully!");
+      } else if (form.scheduled_at) {
+        toast.success("Post scheduled successfully!");
+      } else {
+        toast.success("Post saved as draft!");
+      }
+      
       setDialogOpen(false);
       resetForm();
       fetchPosts();
     } catch (err) {
       toast.error(err.response?.data?.detail || "Failed to create post");
+    }
+  };
+
+  const publishPost = async (postId) => {
+    setPublishing({ ...publishing, [postId]: true });
+    try {
+      const res = await axios.post(`${API}/posts/${postId}/publish`, {}, { withCredentials: true });
+      toast.success("Post published successfully!");
+      fetchPosts();
+    } catch (err) {
+      toast.error("Failed to publish post");
+    } finally {
+      setPublishing({ ...publishing, [postId]: false });
+    }
+  };
+
+  const processScheduledPosts = async () => {
+    setProcessingScheduler(true);
+    try {
+      const res = await axios.post(`${API}/scheduler/process`, {}, { withCredentials: true });
+      if (res.data.published_count > 0) {
+        toast.success(`Published ${res.data.published_count} scheduled posts!`);
+        fetchPosts();
+      } else {
+        toast.info("No scheduled posts due for publishing");
+      }
+    } catch (err) {
+      toast.error("Failed to process scheduled posts");
+    } finally {
+      setProcessingScheduler(false);
     }
   };
 
@@ -163,6 +209,33 @@ const PostCreator = () => {
     }
   };
 
+  const getStatusBadge = (status) => {
+    switch (status) {
+      case 'published':
+        return (
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium bg-emerald-100 text-emerald-700 rounded-full">
+            <CheckCircle className="w-3 h-3" />
+            Published
+          </span>
+        );
+      case 'scheduled':
+        return (
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium bg-blue-100 text-blue-700 rounded-full">
+            <Clock className="w-3 h-3" />
+            Scheduled
+          </span>
+        );
+      default:
+        return (
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium bg-slate-100 text-slate-600 rounded-full">
+            Draft
+          </span>
+        );
+    }
+  };
+
+  const scheduledCount = posts.filter(p => p.status === 'scheduled').length;
+
   if (loading) {
     return (
       <DashboardLayout>
@@ -182,194 +255,223 @@ const PostCreator = () => {
             <h2 className="text-2xl font-bold text-slate-900 font-heading">Post Creator</h2>
             <p className="text-slate-500 mt-1">Create and schedule social media posts with AI assistance</p>
           </div>
-          <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-            <DialogTrigger asChild>
-              <Button className="bg-indigo-600 hover:bg-indigo-700 text-white" data-testid="create-post-btn">
-                <Plus className="w-5 h-5 mr-2" />
-                Create Post
+          <div className="flex items-center gap-3">
+            {scheduledCount > 0 && (
+              <Button 
+                variant="outline"
+                onClick={processScheduledPosts}
+                disabled={processingScheduler}
+                className="border-blue-200 text-blue-600 hover:bg-blue-50"
+                data-testid="process-scheduler-btn"
+              >
+                {processingScheduler ? (
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                ) : (
+                  <Play className="w-4 h-4 mr-2" />
+                )}
+                Process Scheduled ({scheduledCount})
               </Button>
-            </DialogTrigger>
-            <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-              <DialogHeader>
-                <DialogTitle className="font-heading">Create New Post</DialogTitle>
-              </DialogHeader>
-              <form onSubmit={handleSubmit} className="space-y-6 mt-4">
-                {/* Title */}
-                <div>
-                  <Label htmlFor="title">Title</Label>
-                  <Input
-                    id="title"
-                    placeholder="Post title or topic..."
-                    className="mt-1.5"
-                    value={form.title}
-                    onChange={(e) => setForm({ ...form, title: e.target.value })}
-                    required
-                    data-testid="post-title-input"
-                  />
-                </div>
-
-                {/* Caption with AI */}
-                <div>
-                  <div className="flex items-center justify-between mb-1.5">
-                    <Label htmlFor="caption">Caption</Label>
-                    <Button 
-                      type="button"
-                      variant="ghost" 
-                      size="sm"
-                      className="text-violet-600 hover:text-violet-700"
-                      onClick={() => generateAI("caption")}
-                      disabled={generating.caption}
-                      data-testid="ai-caption-btn"
-                    >
-                      {generating.caption ? (
-                        <Loader2 className="w-4 h-4 mr-1 animate-spin" />
-                      ) : (
-                        <Sparkles className="w-4 h-4 mr-1" />
-                      )}
-                      Generate with AI
-                    </Button>
-                  </div>
-                  <Textarea
-                    id="caption"
-                    placeholder="Write your caption..."
-                    className="min-h-[120px]"
-                    value={form.caption}
-                    onChange={(e) => setForm({ ...form, caption: e.target.value })}
-                    required
-                    data-testid="post-caption-input"
-                  />
-                </div>
-
-                {/* Hashtags */}
-                <div>
-                  <div className="flex items-center justify-between mb-1.5">
-                    <Label>Hashtags</Label>
-                    <Button 
-                      type="button"
-                      variant="ghost" 
-                      size="sm"
-                      className="text-violet-600 hover:text-violet-700"
-                      onClick={() => generateAI("hashtags")}
-                      disabled={generating.hashtags}
-                      data-testid="ai-hashtags-btn"
-                    >
-                      {generating.hashtags ? (
-                        <Loader2 className="w-4 h-4 mr-1 animate-spin" />
-                      ) : (
-                        <Hash className="w-4 h-4 mr-1" />
-                      )}
-                      Suggest Hashtags
-                    </Button>
-                  </div>
-                  <div className="flex gap-2">
+            )}
+            <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+              <DialogTrigger asChild>
+                <Button className="bg-indigo-600 hover:bg-indigo-700 text-white" data-testid="create-post-btn">
+                  <Plus className="w-5 h-5 mr-2" />
+                  Create Post
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+                <DialogHeader>
+                  <DialogTitle className="font-heading">Create New Post</DialogTitle>
+                </DialogHeader>
+                <form onSubmit={(e) => handleSubmit(e, false)} className="space-y-6 mt-4">
+                  {/* Title */}
+                  <div>
+                    <Label htmlFor="title">Title</Label>
                     <Input
-                      placeholder="Add hashtag..."
-                      value={form.hashtagInput}
-                      onChange={(e) => setForm({ ...form, hashtagInput: e.target.value })}
-                      onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), addHashtag())}
-                      data-testid="hashtag-input"
+                      id="title"
+                      placeholder="Post title or topic..."
+                      className="mt-1.5"
+                      value={form.title}
+                      onChange={(e) => setForm({ ...form, title: e.target.value })}
+                      required
+                      data-testid="post-title-input"
                     />
-                    <Button type="button" variant="outline" onClick={addHashtag}>Add</Button>
                   </div>
-                  {form.hashtags.length > 0 && (
-                    <div className="flex flex-wrap gap-2 mt-2">
-                      {form.hashtags.map((tag, idx) => (
-                        <span 
-                          key={idx}
-                          className="inline-flex items-center gap-1 px-2.5 py-1 bg-indigo-50 text-indigo-700 rounded-full text-sm"
-                        >
-                          #{tag}
-                          <button 
-                            type="button" 
-                            onClick={() => removeHashtag(tag)}
-                            className="hover:text-indigo-900"
+
+                  {/* Caption with AI */}
+                  <div>
+                    <div className="flex items-center justify-between mb-1.5">
+                      <Label htmlFor="caption">Caption</Label>
+                      <Button 
+                        type="button"
+                        variant="ghost" 
+                        size="sm"
+                        className="text-violet-600 hover:text-violet-700"
+                        onClick={() => generateAI("caption")}
+                        disabled={generating.caption}
+                        data-testid="ai-caption-btn"
+                      >
+                        {generating.caption ? (
+                          <Loader2 className="w-4 h-4 mr-1 animate-spin" />
+                        ) : (
+                          <Sparkles className="w-4 h-4 mr-1" />
+                        )}
+                        Generate with AI
+                      </Button>
+                    </div>
+                    <Textarea
+                      id="caption"
+                      placeholder="Write your caption..."
+                      className="min-h-[120px]"
+                      value={form.caption}
+                      onChange={(e) => setForm({ ...form, caption: e.target.value })}
+                      required
+                      data-testid="post-caption-input"
+                    />
+                  </div>
+
+                  {/* Hashtags */}
+                  <div>
+                    <div className="flex items-center justify-between mb-1.5">
+                      <Label>Hashtags</Label>
+                      <Button 
+                        type="button"
+                        variant="ghost" 
+                        size="sm"
+                        className="text-violet-600 hover:text-violet-700"
+                        onClick={() => generateAI("hashtags")}
+                        disabled={generating.hashtags}
+                        data-testid="ai-hashtags-btn"
+                      >
+                        {generating.hashtags ? (
+                          <Loader2 className="w-4 h-4 mr-1 animate-spin" />
+                        ) : (
+                          <Hash className="w-4 h-4 mr-1" />
+                        )}
+                        Suggest Hashtags
+                      </Button>
+                    </div>
+                    <div className="flex gap-2">
+                      <Input
+                        placeholder="Add hashtag..."
+                        value={form.hashtagInput}
+                        onChange={(e) => setForm({ ...form, hashtagInput: e.target.value })}
+                        onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), addHashtag())}
+                        data-testid="hashtag-input"
+                      />
+                      <Button type="button" variant="outline" onClick={addHashtag}>Add</Button>
+                    </div>
+                    {form.hashtags.length > 0 && (
+                      <div className="flex flex-wrap gap-2 mt-2">
+                        {form.hashtags.map((tag, idx) => (
+                          <span 
+                            key={idx}
+                            className="inline-flex items-center gap-1 px-2.5 py-1 bg-indigo-50 text-indigo-700 rounded-full text-sm"
                           >
-                            ×
-                          </button>
-                        </span>
+                            #{tag}
+                            <button 
+                              type="button" 
+                              onClick={() => removeHashtag(tag)}
+                              className="hover:text-indigo-900"
+                            >
+                              ×
+                            </button>
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Image URL */}
+                  <div>
+                    <Label htmlFor="image_url">Image URL (optional)</Label>
+                    <div className="flex gap-2 mt-1.5">
+                      <Input
+                        id="image_url"
+                        placeholder="https://..."
+                        value={form.image_url}
+                        onChange={(e) => setForm({ ...form, image_url: e.target.value })}
+                        data-testid="post-image-input"
+                      />
+                      <Button type="button" variant="outline">
+                        <ImageIcon className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  </div>
+
+                  {/* Platforms */}
+                  <div>
+                    <Label className="mb-2 block">Platforms</Label>
+                    <div className="flex gap-3">
+                      {platforms.map((platform) => (
+                        <button
+                          key={platform.id}
+                          type="button"
+                          onClick={() => togglePlatform(platform.id)}
+                          className={`flex items-center gap-2 px-4 py-2 rounded-lg border transition-all ${
+                            form.platforms.includes(platform.id)
+                              ? 'border-indigo-300 bg-indigo-50 text-indigo-700'
+                              : 'border-slate-200 hover:border-slate-300'
+                          }`}
+                          data-testid={`platform-${platform.id}`}
+                        >
+                          <div className={`w-6 h-6 rounded bg-gradient-to-r ${platform.color} flex items-center justify-center`}>
+                            <platform.icon className="w-3.5 h-3.5 text-white" />
+                          </div>
+                          <span className="text-sm font-medium">{platform.name}</span>
+                        </button>
                       ))}
                     </div>
-                  )}
-                </div>
+                  </div>
 
-                {/* Image URL */}
-                <div>
-                  <Label htmlFor="image_url">Image URL (optional)</Label>
-                  <div className="flex gap-2 mt-1.5">
+                  {/* Schedule */}
+                  <div>
+                    <Label htmlFor="scheduled_at" className="flex items-center gap-2">
+                      <Calendar className="w-4 h-4" />
+                      Schedule for later (optional)
+                    </Label>
                     <Input
-                      id="image_url"
-                      placeholder="https://..."
-                      value={form.image_url}
-                      onChange={(e) => setForm({ ...form, image_url: e.target.value })}
-                      data-testid="post-image-input"
+                      id="scheduled_at"
+                      type="datetime-local"
+                      className="mt-1.5"
+                      value={form.scheduled_at}
+                      onChange={(e) => setForm({ ...form, scheduled_at: e.target.value })}
+                      data-testid="post-schedule-input"
                     />
-                    <Button type="button" variant="outline">
-                      <ImageIcon className="w-4 h-4" />
+                    {form.scheduled_at && (
+                      <p className="text-xs text-blue-600 mt-1.5 flex items-center gap-1">
+                        <Clock className="w-3 h-3" />
+                        Post will be published at the scheduled time
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Actions */}
+                  <div className="flex gap-3 pt-4 border-t">
+                    <Button 
+                      type="submit" 
+                      variant="outline"
+                      className="flex-1"
+                      data-testid="save-draft-btn"
+                    >
+                      <Save className="w-4 h-4 mr-2" />
+                      {form.scheduled_at ? "Schedule" : "Save Draft"}
+                    </Button>
+                    <Button 
+                      type="button" 
+                      className="flex-1 bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700 text-white"
+                      onClick={(e) => handleSubmit(e, true)}
+                      disabled={form.platforms.length === 0}
+                      data-testid="publish-post-btn"
+                    >
+                      <Send className="w-4 h-4 mr-2" />
+                      Publish Now
                     </Button>
                   </div>
-                </div>
-
-                {/* Platforms */}
-                <div>
-                  <Label className="mb-2 block">Platforms</Label>
-                  <div className="flex gap-3">
-                    {platforms.map((platform) => (
-                      <button
-                        key={platform.id}
-                        type="button"
-                        onClick={() => togglePlatform(platform.id)}
-                        className={`flex items-center gap-2 px-4 py-2 rounded-lg border transition-all ${
-                          form.platforms.includes(platform.id)
-                            ? 'border-indigo-300 bg-indigo-50 text-indigo-700'
-                            : 'border-slate-200 hover:border-slate-300'
-                        }`}
-                        data-testid={`platform-${platform.id}`}
-                      >
-                        <div className={`w-6 h-6 rounded bg-gradient-to-r ${platform.color} flex items-center justify-center`}>
-                          <platform.icon className="w-3.5 h-3.5 text-white" />
-                        </div>
-                        <span className="text-sm font-medium">{platform.name}</span>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Schedule */}
-                <div>
-                  <Label htmlFor="scheduled_at">Schedule (optional)</Label>
-                  <Input
-                    id="scheduled_at"
-                    type="datetime-local"
-                    className="mt-1.5"
-                    value={form.scheduled_at}
-                    onChange={(e) => setForm({ ...form, scheduled_at: e.target.value })}
-                    data-testid="post-schedule-input"
-                  />
-                </div>
-
-                {/* Actions */}
-                <div className="flex gap-3 pt-4">
-                  <Button 
-                    type="submit" 
-                    className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white"
-                    data-testid="save-post-btn"
-                  >
-                    <Save className="w-4 h-4 mr-2" />
-                    Save Draft
-                  </Button>
-                  <Button 
-                    type="button" 
-                    className="flex-1 bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700 text-white"
-                    onClick={() => { setForm({ ...form, status: 'published' }); }}
-                    data-testid="publish-post-btn"
-                  >
-                    <Send className="w-4 h-4 mr-2" />
-                    Publish Now
-                  </Button>
-                </div>
-              </form>
-            </DialogContent>
-          </Dialog>
+                </form>
+              </DialogContent>
+            </Dialog>
+          </div>
         </div>
 
         {/* Posts List */}
@@ -393,16 +495,11 @@ const PostCreator = () => {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {posts.map((post) => (
-              <Card key={post.post_id} className="border-slate-100 shadow-card hover:shadow-card-hover transition-all">
+              <Card key={post.post_id} className="border-slate-100 shadow-card hover:shadow-card-hover transition-all" data-testid={`post-card-${post.post_id}`}>
                 <CardContent className="p-5">
                   <div className="flex items-start justify-between mb-3">
-                    <h3 className="font-semibold text-slate-900 font-heading">{post.title}</h3>
-                    <span className={`status-badge ${
-                      post.status === 'published' ? 'status-published' : 
-                      post.status === 'scheduled' ? 'status-scheduled' : 'status-draft'
-                    }`}>
-                      {post.status}
-                    </span>
+                    <h3 className="font-semibold text-slate-900 font-heading line-clamp-1">{post.title}</h3>
+                    {getStatusBadge(post.status)}
                   </div>
                   <p className="text-sm text-slate-600 line-clamp-3">{post.caption}</p>
                   
@@ -414,6 +511,16 @@ const PostCreator = () => {
                       {post.hashtags.length > 4 && (
                         <span className="text-xs text-slate-400">+{post.hashtags.length - 4}</span>
                       )}
+                    </div>
+                  )}
+
+                  {/* Scheduled Time */}
+                  {post.scheduled_at && post.status === 'scheduled' && (
+                    <div className="mt-3 p-2 bg-blue-50 rounded-lg">
+                      <p className="text-xs text-blue-700 flex items-center gap-1">
+                        <Clock className="w-3 h-3" />
+                        Scheduled: {new Date(post.scheduled_at).toLocaleString()}
+                      </p>
                     </div>
                   )}
 
@@ -432,15 +539,45 @@ const PostCreator = () => {
                         );
                       })}
                     </div>
-                    <Button 
-                      variant="ghost" 
-                      size="sm" 
-                      className="text-red-500 hover:text-red-600 hover:bg-red-50"
-                      onClick={() => deletePost(post.post_id)}
-                      data-testid={`delete-post-${post.post_id}`}
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </Button>
+                    <div className="flex items-center gap-1">
+                      {/* Publish Button for drafts/scheduled */}
+                      {post.status !== 'published' && (
+                        <Button 
+                          variant="ghost" 
+                          size="sm" 
+                          className="text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50"
+                          onClick={() => publishPost(post.post_id)}
+                          disabled={publishing[post.post_id]}
+                          data-testid={`publish-${post.post_id}`}
+                        >
+                          {publishing[post.post_id] ? (
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                          ) : (
+                            <Send className="w-4 h-4" />
+                          )}
+                        </Button>
+                      )}
+                      {/* View results for published */}
+                      {post.status === 'published' && post.publish_results && (
+                        <Button 
+                          variant="ghost" 
+                          size="sm" 
+                          className="text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50"
+                          data-testid={`view-results-${post.post_id}`}
+                        >
+                          <Eye className="w-4 h-4" />
+                        </Button>
+                      )}
+                      <Button 
+                        variant="ghost" 
+                        size="sm" 
+                        className="text-red-500 hover:text-red-600 hover:bg-red-50"
+                        onClick={() => deletePost(post.post_id)}
+                        data-testid={`delete-post-${post.post_id}`}
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </div>
                   </div>
                 </CardContent>
               </Card>
