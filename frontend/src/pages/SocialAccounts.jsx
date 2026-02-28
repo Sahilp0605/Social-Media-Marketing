@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useSearchParams } from "react-router-dom";
 import DashboardLayout from "@/components/DashboardLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -18,7 +19,9 @@ import {
   Send,
   Users,
   TrendingUp,
-  Loader2
+  Loader2,
+  ExternalLink,
+  Zap
 } from "lucide-react";
 import { toast } from "sonner";
 import axios from "axios";
@@ -39,18 +42,23 @@ import {
 } from "@/components/ui/select";
 
 const platforms = [
-  { id: "instagram", name: "Instagram", icon: Instagram, color: "from-pink-500 to-orange-400", description: "Business Account" },
-  { id: "facebook", name: "Facebook", icon: Facebook, color: "from-blue-600 to-blue-500", description: "Page" },
-  { id: "linkedin", name: "LinkedIn", icon: Linkedin, color: "from-blue-700 to-blue-600", description: "Company Page" },
-  { id: "twitter", name: "X (Twitter)", icon: Twitter, color: "from-slate-800 to-slate-700", description: "Account" },
+  { id: "instagram", name: "Instagram", icon: Instagram, color: "from-pink-500 to-orange-400", description: "Business Account", supportsOAuth: true },
+  { id: "facebook", name: "Facebook", icon: Facebook, color: "from-blue-600 to-blue-500", description: "Page", supportsOAuth: true },
+  { id: "linkedin", name: "LinkedIn", icon: Linkedin, color: "from-blue-700 to-blue-600", description: "Company Page", supportsOAuth: false },
+  { id: "twitter", name: "X (Twitter)", icon: Twitter, color: "from-slate-800 to-slate-700", description: "Account", supportsOAuth: false },
 ];
 
 const SocialAccounts = () => {
+  const [searchParams, setSearchParams] = useSearchParams();
   const [accounts, setAccounts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [pageSelectDialogOpen, setPageSelectDialogOpen] = useState(false);
+  const [metaPages, setMetaPages] = useState([]);
+  const [loadingMetaPages, setLoadingMetaPages] = useState(false);
   const [syncing, setSyncing] = useState({});
   const [testingPost, setTestingPost] = useState({});
+  const [connectingPage, setConnectingPage] = useState(null);
   const [form, setForm] = useState({
     platform: "",
     account_name: ""
@@ -58,6 +66,15 @@ const SocialAccounts = () => {
 
   useEffect(() => {
     fetchAccounts();
+    
+    // Check if returning from Meta OAuth
+    if (searchParams.get("meta_connected") === "true") {
+      setPageSelectDialogOpen(true);
+      fetchMetaPages();
+      // Clear the query param
+      searchParams.delete("meta_connected");
+      setSearchParams(searchParams);
+    }
   }, []);
 
   const fetchAccounts = async () => {
@@ -68,6 +85,51 @@ const SocialAccounts = () => {
       console.error("Failed to fetch accounts:", err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchMetaPages = async () => {
+    setLoadingMetaPages(true);
+    try {
+      const res = await axios.get(`${API}/oauth/meta/pages`);
+      setMetaPages(res.data.pages || []);
+    } catch (err) {
+      console.error("Failed to fetch Meta pages:", err);
+      toast.error("Failed to fetch connected pages");
+    } finally {
+      setLoadingMetaPages(false);
+    }
+  };
+
+  const connectMetaOAuth = async () => {
+    try {
+      const res = await axios.get(`${API}/oauth/meta/url`);
+      if (res.data.url) {
+        window.location.href = res.data.url;
+      } else {
+        toast.error("Meta OAuth not configured");
+      }
+    } catch (err) {
+      toast.error(err.response?.data?.detail || "Failed to start OAuth");
+    }
+  };
+
+  const connectMetaPage = async (page) => {
+    setConnectingPage(page.page_id);
+    try {
+      await axios.post(`${API}/oauth/meta/connect-page`, {
+        page_id: page.page_id,
+        page_name: page.page_name,
+        access_token: page.access_token,
+        instagram_business_id: page.instagram_business_id
+      });
+      toast.success(`Connected ${page.page_name}!`);
+      setPageSelectDialogOpen(false);
+      fetchAccounts();
+    } catch (err) {
+      toast.error(err.response?.data?.detail || "Failed to connect page");
+    } finally {
+      setConnectingPage(null);
     }
   };
 
