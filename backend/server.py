@@ -719,6 +719,17 @@ async def login(user_data: UserLogin, response: Response):
         max_age=7*24*60*60
     )
     
+    # Get workspace role if user has active company
+    company_id = user.get("active_company_id")
+    workspace_role = None
+    if company_id:
+        membership = await db.workspace_members.find_one(
+            {"user_id": user["user_id"], "company_id": company_id, "status": "active"},
+            {"_id": 0}
+        )
+        if membership:
+            workspace_role = membership.get("role")
+    
     return {
         "user_id": user["user_id"],
         "email": user["email"],
@@ -727,6 +738,8 @@ async def login(user_data: UserLogin, response: Response):
         "role": user.get("role", "user"),
         "plan": user.get("plan", "free"),
         "plan_expires_at": user.get("plan_expires_at"),
+        "company_id": company_id,
+        "workspace_role": workspace_role,
         "created_at": user["created_at"]
     }
 
