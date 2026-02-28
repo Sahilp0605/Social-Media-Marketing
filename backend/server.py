@@ -1629,9 +1629,13 @@ async def create_lead(lead: LeadCreate):
     lead_id = f"lead_{uuid.uuid4().hex[:12]}"
     now = datetime.now(timezone.utc).isoformat()
     
+    # Get landing page to get company_id
+    landing_page = await db.landing_pages.find_one({"page_id": lead.page_id}, {"_id": 0})
+    
     lead_doc = {
         "lead_id": lead_id,
         "page_id": lead.page_id,
+        "company_id": landing_page.get("company_id") if landing_page else None,
         "name": lead.name,
         "email": lead.email,
         "phone": lead.phone,
@@ -1643,6 +1647,13 @@ async def create_lead(lead: LeadCreate):
     
     # Increment conversions on landing page
     await db.landing_pages.update_one({"page_id": lead.page_id}, {"$inc": {"conversions": 1}})
+    
+    # Send WhatsApp notification if configured
+    if landing_page:
+        try:
+            await send_lead_whatsapp_notification(lead_doc, landing_page)
+        except Exception as e:
+            logger.error(f"WhatsApp notification failed: {e}")
     
     return LeadResponse(**lead_doc)
 
