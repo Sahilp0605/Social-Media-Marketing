@@ -1070,14 +1070,27 @@ async def publish_post(post_id: str, user: dict = Depends(get_current_user)):
     if not post:
         raise HTTPException(status_code=404, detail="Post not found")
     
+    # Get user's connected accounts for selected platforms
+    connected_accounts = await db.social_accounts.find(
+        {"user_id": user["user_id"], "platform": {"$in": post.get("platforms", [])}},
+        {"_id": 0}
+    ).to_list(100)
+    
     # Mock publishing - simulate API calls
+    import random
     results = []
     for platform in post.get("platforms", []):
+        # Find connected account for this platform
+        account = next((a for a in connected_accounts if a["platform"] == platform), None)
+        
         # Simulate successful publishing
         results.append({
             "platform": platform,
             "status": "published",
+            "account_name": account["account_name"] if account else "Demo Account",
             "external_id": f"{platform}_{uuid.uuid4().hex[:8]}",
+            "external_url": f"https://{platform}.com/p/{uuid.uuid4().hex[:12]}",
+            "simulated_reach": random.randint(500, 10000),
             "published_at": datetime.now(timezone.utc).isoformat()
         })
     
@@ -1094,6 +1107,143 @@ async def publish_post(post_id: str, user: dict = Depends(get_current_user)):
     return {
         "message": "Post published successfully (mock)",
         "results": results
+    }
+
+@api_router.get("/posts/scheduled/pending")
+async def get_pending_scheduled_posts(user: dict = Depends(get_current_user)):
+    """Get posts that are scheduled and pending publication"""
+    now = datetime.now(timezone.utc).isoformat()
+    posts = await db.posts.find({
+        "user_id": user["user_id"],
+        "status": "scheduled",
+        "scheduled_at": {"$lte": now}
+    }, {"_id": 0}).to_list(100)
+    return [PostResponse(**p) for p in posts]
+
+@api_router.post("/scheduler/process")
+async def process_scheduled_posts(user: dict = Depends(get_current_user)):
+    """Process and publish all due scheduled posts for the user"""
+    now = datetime.now(timezone.utc)
+    
+    # Find posts that are scheduled and due
+    posts = await db.posts.find({
+        "user_id": user["user_id"],
+        "status": "scheduled",
+        "scheduled_at": {"$ne": None}
+    }, {"_id": 0}).to_list(1000)
+    
+    published_count = 0
+    results = []
+    
+    for post in posts:
+        scheduled_at = post.get("scheduled_at")
+        if not scheduled_at:
+            continue
+            
+        try:
+            if isinstance(scheduled_at, str):
+                # Handle various datetime formats
+                scheduled_dt = datetime.fromisoformat(scheduled_at.replace('Z', '+00:00'))
+            else:
+                scheduled_dt = scheduled_at
+                
+            if scheduled_dt.tzinfo is None:
+                scheduled_dt = scheduled_dt.replace(tzinfo=timezone.utc)
+            
+            # Check if post is due
+            if scheduled_dt <= now:
+                # Get connected accounts for platforms
+                connected_accounts = await db.social_accounts.find(
+                    {"user_id": user["user_id"], "platform": {"$in": post.get("platforms", [])}},
+                    {"_id": 0}
+                ).to_list(100)
+                
+                # Mock publish results
+                import random
+                publish_results = []
+                for platform in post.get("platforms", []):
+                    account = next((a for a in connected_accounts if a["platform"] == platform), None)
+                    publish_results.append({
+                        "platform": platform,
+                        "status": "published",
+                        "account_name": account["account_name"] if account else "Demo Account",
+                        "external_id": f"{platform}_{uuid.uuid4().hex[:8]}",
+                        "external_url": f"https://{platform}.com/p/{uuid.uuid4().hex[:12]}",
+                        "simulated_reach": random.randint(500, 10000),
+                        "published_at": now.isoformat()
+                    })
+                
+                # Update post status
+                await db.posts.update_one(
+                    {"post_id": post["post_id"]},
+                    {"$set": {
+                        "status": "published",
+                        "published_at": now.isoformat(),
+                        "publish_results": publish_results
+                    }}
+                )
+                
+                published_count += 1
+                results.append({
+                    "post_id": post["post_id"],
+                    "title": post["title"],
+                    "platforms": post.get("platforms", []),
+                    "publish_results": publish_results
+                })
+                
+        except (ValueError, TypeError) as e:
+            logger.error(f"Error processing scheduled post {post['post_id']}: {e}")
+            continue
+    
+    return {
+        "message": f"Processed {published_count} scheduled posts (mock)",
+        "published_count": published_count,
+        "results": results
+    }
+
+@api_router.get("/scheduler/queue")
+async def get_scheduler_queue(user: dict = Depends(get_current_user)):
+    """Get all scheduled posts with their due times"""
+    posts = await db.posts.find({
+        "user_id": user["user_id"],
+        "status": "scheduled"
+    }, {"_id": 0}).sort("scheduled_at", 1).to_list(100)
+    
+    now = datetime.now(timezone.utc)
+    queue = []
+    
+    for post in posts:
+        scheduled_at = post.get("scheduled_at")
+        if not scheduled_at:
+            continue
+            
+        try:
+            if isinstance(scheduled_at, str):
+                scheduled_dt = datetime.fromisoformat(scheduled_at.replace('Z', '+00:00'))
+            else:
+                scheduled_dt = scheduled_at
+                
+            if scheduled_dt.tzinfo is None:
+                scheduled_dt = scheduled_dt.replace(tzinfo=timezone.utc)
+            
+            is_due = scheduled_dt <= now
+            time_until = (scheduled_dt - now).total_seconds() if not is_due else 0
+            
+            queue.append({
+                "post_id": post["post_id"],
+                "title": post["title"],
+                "platforms": post.get("platforms", []),
+                "scheduled_at": scheduled_at,
+                "is_due": is_due,
+                "time_until_due_seconds": max(0, time_until)
+            })
+        except (ValueError, TypeError):
+            continue
+    
+    return {
+        "queue": queue,
+        "total_scheduled": len(queue),
+        "due_now": len([q for q in queue if q["is_due"]])
     }
 
 # ================== TEMPLATES ROUTES ==================
