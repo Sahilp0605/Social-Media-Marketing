@@ -206,10 +206,6 @@ const WorkspaceSettings = () => {
       </DashboardLayout>
     );
   }
-        </div>
-      </DashboardLayout>
-    );
-  }
 
   const canManageMembers = userRole === "owner" || userRole === "admin";
 
