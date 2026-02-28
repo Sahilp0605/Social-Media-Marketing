@@ -118,6 +118,15 @@ const WorkspaceSettings = () => {
     }
   };
 
+  const fetchSubscription = async () => {
+    try {
+      const res = await axios.get(`${API}/subscription`);
+      setSubscription(res.data);
+    } catch (err) {
+      console.error("Failed to fetch subscription:", err);
+    }
+  };
+
   const handleInvite = async (e) => {
     e.preventDefault();
     setInviting(true);
