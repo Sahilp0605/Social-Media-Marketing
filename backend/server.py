@@ -1851,6 +1851,918 @@ async def root():
 async def health_check():
     return {"status": "healthy", "timestamp": datetime.now(timezone.utc).isoformat()}
 
+# ================== WORKSPACE ROUTES ==================
+
+@api_router.get("/workspace")
+async def get_workspace(user: dict = Depends(get_current_user)):
+    """Get current user's active workspace/company"""
+    company_id = user.get("active_company_id")
+    if not company_id:
+        return {"company": None, "members": [], "role": None}
+    
+    company = await db.companies.find_one({"company_id": company_id}, {"_id": 0})
+    if not company:
+        return {"company": None, "members": [], "role": None}
+    
+    members = await db.workspace_members.find(
+        {"company_id": company_id, "status": "active"},
+        {"_id": 0}
+    ).to_list(100)
+    
+    return {
+        "company": company,
+        "members": members,
+        "role": user.get("workspace_role")
+    }
+
+@api_router.post("/workspace", response_model=CompanyResponse)
+async def create_workspace(company_data: CompanyCreate, user: dict = Depends(get_current_user)):
+    """Create a new workspace/company"""
+    company_id = f"company_{uuid.uuid4().hex[:12]}"
+    now = datetime.now(timezone.utc)
+    trial_expires = (now + timedelta(days=14)).isoformat()
+    
+    company_doc = {
+        "company_id": company_id,
+        "name": company_data.name,
+        "industry": company_data.industry,
+        "owner_id": user["user_id"],
+        "plan": "free",
+        "plan_expires_at": trial_expires,
+        "whatsapp_settings": {
+            "enabled": False,
+            "on_new_lead": True,
+            "on_post_published": False,
+            "template_name": "lead_notification"
+        },
+        "created_at": now.isoformat()
+    }
+    await db.companies.insert_one(company_doc)
+    
+    # Add user as owner
+    member_doc = {
+        "member_id": f"member_{uuid.uuid4().hex[:12]}",
+        "company_id": company_id,
+        "user_id": user["user_id"],
+        "email": user["email"],
+        "name": user["name"],
+        "role": "owner",
+        "invited_by": user["user_id"],
+        "status": "active",
+        "created_at": now.isoformat()
+    }
+    await db.workspace_members.insert_one(member_doc)
+    
+    # Set as active company
+    await db.users.update_one(
+        {"user_id": user["user_id"]},
+        {"$set": {"active_company_id": company_id}}
+    )
+    
+    return CompanyResponse(**company_doc)
+
+@api_router.put("/workspace/{company_id}")
+async def update_workspace(company_id: str, company_data: CompanyCreate, user: dict = Depends(get_current_user)):
+    """Update workspace details (Owner/Admin only)"""
+    # Check permissions
+    membership = await db.workspace_members.find_one(
+        {"user_id": user["user_id"], "company_id": company_id, "status": "active"},
+        {"_id": 0}
+    )
+    if not membership or membership.get("role") not in ["owner", "admin"]:
+        raise HTTPException(status_code=403, detail="Permission denied")
+    
+    await db.companies.update_one(
+        {"company_id": company_id},
+        {"$set": {"name": company_data.name, "industry": company_data.industry}}
+    )
+    
+    company = await db.companies.find_one({"company_id": company_id}, {"_id": 0})
+    return company
+
+@api_router.post("/workspace/switch/{company_id}")
+async def switch_workspace(company_id: str, user: dict = Depends(get_current_user)):
+    """Switch to a different workspace"""
+    # Check if user is member
+    membership = await db.workspace_members.find_one(
+        {"user_id": user["user_id"], "company_id": company_id, "status": "active"},
+        {"_id": 0}
+    )
+    if not membership:
+        raise HTTPException(status_code=403, detail="Not a member of this workspace")
+    
+    await db.users.update_one(
+        {"user_id": user["user_id"]},
+        {"$set": {"active_company_id": company_id}}
+    )
+    
+    company = await db.companies.find_one({"company_id": company_id}, {"_id": 0})
+    return {"message": "Switched workspace", "company": company, "role": membership.get("role")}
+
+@api_router.get("/workspace/list")
+async def list_workspaces(user: dict = Depends(get_current_user)):
+    """List all workspaces user is a member of"""
+    memberships = await db.workspace_members.find(
+        {"user_id": user["user_id"], "status": "active"},
+        {"_id": 0}
+    ).to_list(100)
+    
+    workspaces = []
+    for m in memberships:
+        company = await db.companies.find_one({"company_id": m["company_id"]}, {"_id": 0})
+        if company:
+            workspaces.append({
+                "company": company,
+                "role": m.get("role"),
+                "is_active": company["company_id"] == user.get("active_company_id")
+            })
+    
+    return {"workspaces": workspaces}
+
+@api_router.post("/workspace/invite")
+async def invite_member(invite: WorkspaceInviteCreate, user: dict = Depends(get_current_user)):
+    """Invite a user to the workspace"""
+    company_id = user.get("active_company_id")
+    if not company_id:
+        raise HTTPException(status_code=400, detail="No active workspace")
+    
+    # Check permissions
+    if not check_permission(user, "manage_members"):
+        raise HTTPException(status_code=403, detail="Permission denied")
+    
+    # Check if already a member
+    existing = await db.workspace_members.find_one(
+        {"company_id": company_id, "email": invite.email, "status": "active"},
+        {"_id": 0}
+    )
+    if existing:
+        raise HTTPException(status_code=400, detail="User is already a member")
+    
+    # Check for pending invite
+    pending = await db.workspace_invites.find_one(
+        {"company_id": company_id, "email": invite.email, "status": "pending"},
+        {"_id": 0}
+    )
+    if pending:
+        raise HTTPException(status_code=400, detail="Invite already pending")
+    
+    now = datetime.now(timezone.utc)
+    invite_id = f"invite_{uuid.uuid4().hex[:12]}"
+    
+    invite_doc = {
+        "invite_id": invite_id,
+        "company_id": company_id,
+        "email": invite.email,
+        "role": invite.role,
+        "invited_by": user["user_id"],
+        "status": "pending",
+        "created_at": now.isoformat(),
+        "expires_at": (now + timedelta(days=7)).isoformat()
+    }
+    await db.workspace_invites.insert_one(invite_doc)
+    
+    return WorkspaceInviteResponse(**invite_doc)
+
+@api_router.get("/workspace/invites")
+async def list_invites(user: dict = Depends(get_current_user)):
+    """List pending invites for the workspace"""
+    company_id = user.get("active_company_id")
+    if not company_id:
+        return {"invites": []}
+    
+    invites = await db.workspace_invites.find(
+        {"company_id": company_id, "status": "pending"},
+        {"_id": 0}
+    ).to_list(100)
+    
+    return {"invites": invites}
+
+@api_router.post("/workspace/invites/{invite_id}/accept")
+async def accept_invite(invite_id: str, user: dict = Depends(get_current_user)):
+    """Accept a workspace invite"""
+    invite = await db.workspace_invites.find_one(
+        {"invite_id": invite_id, "email": user["email"], "status": "pending"},
+        {"_id": 0}
+    )
+    if not invite:
+        raise HTTPException(status_code=404, detail="Invite not found or already processed")
+    
+    # Check if expired
+    expires_at = datetime.fromisoformat(invite["expires_at"])
+    if expires_at < datetime.now(timezone.utc):
+        await db.workspace_invites.update_one(
+            {"invite_id": invite_id},
+            {"$set": {"status": "expired"}}
+        )
+        raise HTTPException(status_code=400, detail="Invite has expired")
+    
+    now = datetime.now(timezone.utc).isoformat()
+    
+    # Add as member
+    member_doc = {
+        "member_id": f"member_{uuid.uuid4().hex[:12]}",
+        "company_id": invite["company_id"],
+        "user_id": user["user_id"],
+        "email": user["email"],
+        "name": user["name"],
+        "role": invite["role"],
+        "invited_by": invite["invited_by"],
+        "status": "active",
+        "created_at": now
+    }
+    await db.workspace_members.insert_one(member_doc)
+    
+    # Update invite status
+    await db.workspace_invites.update_one(
+        {"invite_id": invite_id},
+        {"$set": {"status": "accepted"}}
+    )
+    
+    # Switch user to this workspace
+    await db.users.update_one(
+        {"user_id": user["user_id"]},
+        {"$set": {"active_company_id": invite["company_id"]}}
+    )
+    
+    return {"message": "Invite accepted", "company_id": invite["company_id"]}
+
+@api_router.put("/workspace/members/{member_id}/role")
+async def update_member_role(member_id: str, role: str, user: dict = Depends(get_current_user)):
+    """Update a member's role (Owner only)"""
+    company_id = user.get("active_company_id")
+    if not company_id:
+        raise HTTPException(status_code=400, detail="No active workspace")
+    
+    # Only owners can change roles
+    if user.get("workspace_role") != "owner":
+        raise HTTPException(status_code=403, detail="Only owners can change roles")
+    
+    # Validate role
+    if role not in [r.value for r in WorkspaceRole]:
+        raise HTTPException(status_code=400, detail="Invalid role")
+    
+    # Cannot change owner's role
+    member = await db.workspace_members.find_one(
+        {"member_id": member_id, "company_id": company_id},
+        {"_id": 0}
+    )
+    if not member:
+        raise HTTPException(status_code=404, detail="Member not found")
+    
+    if member.get("role") == "owner":
+        raise HTTPException(status_code=400, detail="Cannot change owner's role")
+    
+    await db.workspace_members.update_one(
+        {"member_id": member_id},
+        {"$set": {"role": role}}
+    )
+    
+    return {"message": "Role updated", "role": role}
+
+@api_router.delete("/workspace/members/{member_id}")
+async def remove_member(member_id: str, user: dict = Depends(get_current_user)):
+    """Remove a member from the workspace"""
+    company_id = user.get("active_company_id")
+    if not company_id:
+        raise HTTPException(status_code=400, detail="No active workspace")
+    
+    # Check permissions
+    if user.get("workspace_role") not in ["owner", "admin"]:
+        raise HTTPException(status_code=403, detail="Permission denied")
+    
+    member = await db.workspace_members.find_one(
+        {"member_id": member_id, "company_id": company_id},
+        {"_id": 0}
+    )
+    if not member:
+        raise HTTPException(status_code=404, detail="Member not found")
+    
+    # Cannot remove owner
+    if member.get("role") == "owner":
+        raise HTTPException(status_code=400, detail="Cannot remove workspace owner")
+    
+    await db.workspace_members.update_one(
+        {"member_id": member_id},
+        {"$set": {"status": "removed"}}
+    )
+    
+    return {"message": "Member removed"}
+
+# ================== META GRAPH API OAUTH ==================
+
+@api_router.get("/oauth/meta/url")
+async def get_meta_oauth_url(user: dict = Depends(get_current_user)):
+    """Get Meta OAuth URL for Facebook/Instagram connection"""
+    if not META_APP_ID:
+        raise HTTPException(status_code=500, detail="Meta integration not configured. Set META_APP_ID in environment.")
+    
+    company_id = user.get("active_company_id") or user.get("company_id")
+    state = f"{user['user_id']}:{company_id}"
+    
+    # Scopes for Facebook/Instagram posting
+    scopes = [
+        "pages_show_list",
+        "pages_read_engagement",
+        "pages_manage_posts",
+        "instagram_basic",
+        "instagram_content_publish",
+        "business_management"
+    ]
+    
+    redirect_uri = META_REDIRECT_URI or f"{os.environ.get('REACT_APP_BACKEND_URL', '')}/api/oauth/meta/callback"
+    
+    oauth_url = (
+        f"https://www.facebook.com/v18.0/dialog/oauth?"
+        f"client_id={META_APP_ID}"
+        f"&redirect_uri={redirect_uri}"
+        f"&state={state}"
+        f"&scope={','.join(scopes)}"
+        f"&response_type=code"
+    )
+    
+    return {"url": oauth_url, "configured": True}
+
+@api_router.get("/oauth/meta/callback")
+async def meta_oauth_callback(code: str, state: str = None, request: Request = None):
+    """Handle Meta OAuth callback"""
+    if not META_APP_ID or not META_APP_SECRET:
+        raise HTTPException(status_code=500, detail="Meta integration not configured")
+    
+    redirect_uri = META_REDIRECT_URI or f"{os.environ.get('REACT_APP_BACKEND_URL', '')}/api/oauth/meta/callback"
+    
+    # Exchange code for access token
+    async with httpx.AsyncClient() as client:
+        token_response = await client.get(
+            "https://graph.facebook.com/v18.0/oauth/access_token",
+            params={
+                "client_id": META_APP_ID,
+                "client_secret": META_APP_SECRET,
+                "redirect_uri": redirect_uri,
+                "code": code
+            }
+        )
+        
+        if token_response.status_code != 200:
+            logger.error(f"Meta token exchange failed: {token_response.text}")
+            raise HTTPException(status_code=400, detail="Failed to exchange OAuth code")
+        
+        token_data = token_response.json()
+        short_lived_token = token_data.get("access_token")
+        
+        # Exchange for long-lived token
+        long_token_response = await client.get(
+            "https://graph.facebook.com/v18.0/oauth/access_token",
+            params={
+                "grant_type": "fb_exchange_token",
+                "client_id": META_APP_ID,
+                "client_secret": META_APP_SECRET,
+                "fb_exchange_token": short_lived_token
+            }
+        )
+        
+        if long_token_response.status_code == 200:
+            long_token_data = long_token_response.json()
+            access_token = long_token_data.get("access_token", short_lived_token)
+        else:
+            access_token = short_lived_token
+        
+        # Get user's Facebook pages
+        pages_response = await client.get(
+            "https://graph.facebook.com/v18.0/me/accounts",
+            params={"access_token": access_token}
+        )
+        
+        pages = []
+        if pages_response.status_code == 200:
+            pages_data = pages_response.json()
+            for page in pages_data.get("data", []):
+                page_info = {
+                    "page_id": page["id"],
+                    "page_name": page["name"],
+                    "access_token": page["access_token"],
+                    "instagram_business_id": None
+                }
+                
+                # Check if page has Instagram Business account
+                ig_response = await client.get(
+                    f"https://graph.facebook.com/v18.0/{page['id']}",
+                    params={
+                        "fields": "instagram_business_account",
+                        "access_token": page["access_token"]
+                    }
+                )
+                if ig_response.status_code == 200:
+                    ig_data = ig_response.json()
+                    if "instagram_business_account" in ig_data:
+                        page_info["instagram_business_id"] = ig_data["instagram_business_account"]["id"]
+                
+                pages.append(page_info)
+    
+    # Parse state to get user_id and company_id
+    user_id = None
+    company_id = None
+    if state:
+        parts = state.split(":")
+        user_id = parts[0] if len(parts) > 0 else None
+        company_id = parts[1] if len(parts) > 1 else None
+    
+    # Store pages temporarily for selection
+    if user_id:
+        await db.meta_oauth_pending.update_one(
+            {"user_id": user_id},
+            {"$set": {
+                "user_id": user_id,
+                "company_id": company_id,
+                "pages": pages,
+                "user_token": access_token,
+                "created_at": datetime.now(timezone.utc).isoformat()
+            }},
+            upsert=True
+        )
+    
+    # Redirect to frontend page selection
+    frontend_url = os.environ.get('REACT_APP_BACKEND_URL', '').replace('/api', '')
+    return Response(
+        status_code=302,
+        headers={"Location": f"{frontend_url}/social-accounts?meta_connected=true"}
+    )
+
+@api_router.get("/oauth/meta/pages")
+async def get_meta_pages(user: dict = Depends(get_current_user)):
+    """Get available Facebook/Instagram pages from OAuth flow"""
+    pending = await db.meta_oauth_pending.find_one(
+        {"user_id": user["user_id"]},
+        {"_id": 0}
+    )
+    
+    if not pending:
+        return {"pages": [], "message": "No pending OAuth connection"}
+    
+    return {"pages": pending.get("pages", [])}
+
+@api_router.post("/oauth/meta/connect-page")
+async def connect_meta_page(page_data: MetaPageSelect, user: dict = Depends(get_current_user)):
+    """Connect a Facebook/Instagram page to the workspace"""
+    company_id = user.get("active_company_id") or user.get("company_id")
+    if not company_id:
+        raise HTTPException(status_code=400, detail="No active workspace")
+    
+    # Check plan limits
+    if not await check_plan_limit(user, "social_accounts"):
+        raise HTTPException(status_code=403, detail="Social accounts limit reached")
+    
+    now = datetime.now(timezone.utc).isoformat()
+    
+    # Create Facebook page account
+    fb_account_id = f"sa_{uuid.uuid4().hex[:12]}"
+    fb_account = {
+        "account_id": fb_account_id,
+        "user_id": user["user_id"],
+        "company_id": company_id,
+        "platform": "facebook",
+        "account_name": page_data.page_name,
+        "external_id": page_data.page_id,
+        "access_token": page_data.access_token,
+        "is_connected": True,
+        "is_real_connection": True,
+        "followers_count": 0,
+        "last_synced_at": now,
+        "created_at": now
+    }
+    await db.social_accounts.insert_one(fb_account)
+    
+    # Create Instagram account if available
+    ig_account = None
+    if page_data.instagram_business_id:
+        ig_account_id = f"sa_{uuid.uuid4().hex[:12]}"
+        ig_account = {
+            "account_id": ig_account_id,
+            "user_id": user["user_id"],
+            "company_id": company_id,
+            "platform": "instagram",
+            "account_name": f"{page_data.page_name} (Instagram)",
+            "external_id": page_data.instagram_business_id,
+            "access_token": page_data.access_token,
+            "facebook_page_id": page_data.page_id,
+            "is_connected": True,
+            "is_real_connection": True,
+            "followers_count": 0,
+            "last_synced_at": now,
+            "created_at": now
+        }
+        await db.social_accounts.insert_one(ig_account)
+    
+    # Clean up pending OAuth
+    await db.meta_oauth_pending.delete_one({"user_id": user["user_id"]})
+    
+    return {
+        "message": "Page connected successfully",
+        "facebook_account": SocialAccountResponse(**fb_account),
+        "instagram_account": SocialAccountResponse(**ig_account) if ig_account else None
+    }
+
+@api_router.post("/social-accounts/{account_id}/publish-real")
+async def publish_to_real_account(account_id: str, post_id: str, user: dict = Depends(get_current_user)):
+    """Publish a post to a real connected social media account"""
+    account = await db.social_accounts.find_one(
+        {"account_id": account_id, "user_id": user["user_id"]},
+        {"_id": 0}
+    )
+    if not account:
+        raise HTTPException(status_code=404, detail="Account not found")
+    
+    if not account.get("is_real_connection"):
+        raise HTTPException(status_code=400, detail="This is a mock account. Use /publish for mock posting.")
+    
+    post = await db.posts.find_one({"post_id": post_id, "user_id": user["user_id"]}, {"_id": 0})
+    if not post:
+        raise HTTPException(status_code=404, detail="Post not found")
+    
+    access_token = account.get("access_token")
+    if not access_token:
+        raise HTTPException(status_code=400, detail="No access token available")
+    
+    platform = account.get("platform")
+    external_id = account.get("external_id")
+    
+    try:
+        async with httpx.AsyncClient() as client:
+            if platform == "facebook":
+                # Post to Facebook Page
+                response = await client.post(
+                    f"https://graph.facebook.com/v18.0/{external_id}/feed",
+                    params={
+                        "message": f"{post['caption']}\n\n{' '.join(['#' + h for h in post.get('hashtags', [])])}",
+                        "access_token": access_token
+                    }
+                )
+                
+                if response.status_code != 200:
+                    logger.error(f"Facebook post failed: {response.text}")
+                    raise HTTPException(status_code=400, detail=f"Facebook posting failed: {response.text}")
+                
+                result = response.json()
+                return {
+                    "success": True,
+                    "platform": "facebook",
+                    "post_id": result.get("id"),
+                    "message": "Posted to Facebook successfully"
+                }
+            
+            elif platform == "instagram":
+                # Instagram requires image URL for posting
+                if not post.get("image_url"):
+                    raise HTTPException(status_code=400, detail="Instagram posts require an image URL")
+                
+                # Step 1: Create media container
+                container_response = await client.post(
+                    f"https://graph.facebook.com/v18.0/{external_id}/media",
+                    params={
+                        "image_url": post["image_url"],
+                        "caption": f"{post['caption']}\n\n{' '.join(['#' + h for h in post.get('hashtags', [])])}",
+                        "access_token": access_token
+                    }
+                )
+                
+                if container_response.status_code != 200:
+                    logger.error(f"Instagram container creation failed: {container_response.text}")
+                    raise HTTPException(status_code=400, detail=f"Instagram posting failed: {container_response.text}")
+                
+                container_data = container_response.json()
+                creation_id = container_data.get("id")
+                
+                # Step 2: Publish the container
+                publish_response = await client.post(
+                    f"https://graph.facebook.com/v18.0/{external_id}/media_publish",
+                    params={
+                        "creation_id": creation_id,
+                        "access_token": access_token
+                    }
+                )
+                
+                if publish_response.status_code != 200:
+                    logger.error(f"Instagram publish failed: {publish_response.text}")
+                    raise HTTPException(status_code=400, detail=f"Instagram publish failed: {publish_response.text}")
+                
+                result = publish_response.json()
+                return {
+                    "success": True,
+                    "platform": "instagram",
+                    "post_id": result.get("id"),
+                    "message": "Posted to Instagram successfully"
+                }
+            
+            else:
+                raise HTTPException(status_code=400, detail=f"Real posting not supported for {platform}")
+    
+    except httpx.RequestError as e:
+        logger.error(f"Network error during posting: {e}")
+        raise HTTPException(status_code=500, detail="Network error during posting")
+
+# ================== WHATSAPP BUSINESS API ==================
+
+@api_router.get("/whatsapp/status")
+async def get_whatsapp_status(user: dict = Depends(get_current_user)):
+    """Get WhatsApp integration status"""
+    company_id = user.get("active_company_id") or user.get("company_id")
+    if not company_id:
+        return {"configured": False, "enabled": False}
+    
+    company = await db.companies.find_one({"company_id": company_id}, {"_id": 0})
+    settings = company.get("whatsapp_settings", {}) if company else {}
+    
+    return {
+        "configured": bool(WHATSAPP_PHONE_NUMBER_ID and WHATSAPP_ACCESS_TOKEN),
+        "enabled": settings.get("enabled", False),
+        "settings": settings
+    }
+
+@api_router.put("/whatsapp/settings")
+async def update_whatsapp_settings(settings: WhatsAppNotificationSettings, user: dict = Depends(get_current_user)):
+    """Update WhatsApp notification settings"""
+    company_id = user.get("active_company_id") or user.get("company_id")
+    if not company_id:
+        raise HTTPException(status_code=400, detail="No active workspace")
+    
+    # Check permissions
+    if not check_permission(user, "manage_campaigns"):
+        raise HTTPException(status_code=403, detail="Permission denied")
+    
+    await db.companies.update_one(
+        {"company_id": company_id},
+        {"$set": {"whatsapp_settings": settings.model_dump()}}
+    )
+    
+    return {"message": "Settings updated", "settings": settings.model_dump()}
+
+@api_router.post("/whatsapp/send-template")
+async def send_whatsapp_template(message: WhatsAppTemplateMessage, user: dict = Depends(get_current_user)):
+    """Send a WhatsApp template message"""
+    if not WHATSAPP_PHONE_NUMBER_ID or not WHATSAPP_ACCESS_TOKEN:
+        raise HTTPException(status_code=500, detail="WhatsApp not configured. Set WHATSAPP_PHONE_NUMBER_ID and WHATSAPP_ACCESS_TOKEN.")
+    
+    # Format phone number (remove + and spaces)
+    phone = message.to_phone.replace("+", "").replace(" ", "").replace("-", "")
+    
+    payload = {
+        "messaging_product": "whatsapp",
+        "to": phone,
+        "type": "template",
+        "template": {
+            "name": message.template_name,
+            "language": {
+                "code": message.language_code
+            }
+        }
+    }
+    
+    if message.components:
+        payload["template"]["components"] = message.components
+    
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.post(
+                f"https://graph.facebook.com/v18.0/{WHATSAPP_PHONE_NUMBER_ID}/messages",
+                headers={
+                    "Authorization": f"Bearer {WHATSAPP_ACCESS_TOKEN}",
+                    "Content-Type": "application/json"
+                },
+                json=payload
+            )
+            
+            if response.status_code != 200:
+                logger.error(f"WhatsApp send failed: {response.text}")
+                return {
+                    "success": False,
+                    "error": response.json() if response.headers.get("content-type", "").startswith("application/json") else response.text
+                }
+            
+            result = response.json()
+            return {
+                "success": True,
+                "message_id": result.get("messages", [{}])[0].get("id"),
+                "response": result
+            }
+    
+    except httpx.RequestError as e:
+        logger.error(f"WhatsApp network error: {e}")
+        raise HTTPException(status_code=500, detail="Network error sending WhatsApp message")
+
+@api_router.post("/whatsapp/test")
+async def test_whatsapp_connection(user: dict = Depends(get_current_user)):
+    """Test WhatsApp API connection"""
+    if not WHATSAPP_PHONE_NUMBER_ID or not WHATSAPP_ACCESS_TOKEN:
+        return {
+            "configured": False,
+            "message": "WhatsApp not configured. Set WHATSAPP_PHONE_NUMBER_ID and WHATSAPP_ACCESS_TOKEN in environment."
+        }
+    
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.get(
+                f"https://graph.facebook.com/v18.0/{WHATSAPP_PHONE_NUMBER_ID}",
+                headers={"Authorization": f"Bearer {WHATSAPP_ACCESS_TOKEN}"}
+            )
+            
+            if response.status_code == 200:
+                data = response.json()
+                return {
+                    "configured": True,
+                    "connected": True,
+                    "phone_number": data.get("display_phone_number"),
+                    "verified_name": data.get("verified_name")
+                }
+            else:
+                return {
+                    "configured": True,
+                    "connected": False,
+                    "error": response.text
+                }
+    except httpx.RequestError as e:
+        return {
+            "configured": True,
+            "connected": False,
+            "error": str(e)
+        }
+
+# Helper function to send WhatsApp notification on lead capture
+async def send_lead_whatsapp_notification(lead: dict, landing_page: dict):
+    """Send WhatsApp notification when a new lead is captured"""
+    if not WHATSAPP_PHONE_NUMBER_ID or not WHATSAPP_ACCESS_TOKEN:
+        return
+    
+    # Get company settings
+    company = await db.companies.find_one({"company_id": landing_page.get("company_id")}, {"_id": 0})
+    if not company:
+        return
+    
+    settings = company.get("whatsapp_settings", {})
+    if not settings.get("enabled") or not settings.get("on_new_lead"):
+        return
+    
+    # Get owner's phone (would need to be stored in company settings)
+    owner_phone = company.get("notification_phone")
+    if not owner_phone:
+        return
+    
+    try:
+        payload = {
+            "messaging_product": "whatsapp",
+            "to": owner_phone.replace("+", "").replace(" ", ""),
+            "type": "template",
+            "template": {
+                "name": settings.get("template_name", "lead_notification"),
+                "language": {"code": "en"},
+                "components": [
+                    {
+                        "type": "body",
+                        "parameters": [
+                            {"type": "text", "text": lead.get("name", "New Lead")},
+                            {"type": "text", "text": lead.get("email", "")},
+                            {"type": "text", "text": landing_page.get("name", "Landing Page")}
+                        ]
+                    }
+                ]
+            }
+        }
+        
+        async with httpx.AsyncClient() as client:
+            await client.post(
+                f"https://graph.facebook.com/v18.0/{WHATSAPP_PHONE_NUMBER_ID}/messages",
+                headers={
+                    "Authorization": f"Bearer {WHATSAPP_ACCESS_TOKEN}",
+                    "Content-Type": "application/json"
+                },
+                json=payload
+            )
+    except Exception as e:
+        logger.error(f"Failed to send WhatsApp notification: {e}")
+
+# ================== ANALYTICS ROUTES (ADVANCED) ==================
+
+@api_router.get("/analytics/detailed")
+async def get_detailed_analytics(
+    user: dict = Depends(get_current_user),
+    period: str = Query("30d", regex="^(7d|30d|90d|all)$")
+):
+    """Get detailed analytics with breakdowns"""
+    company_id = user.get("active_company_id") or user.get("company_id")
+    
+    # Calculate date range
+    now = datetime.now(timezone.utc)
+    if period == "7d":
+        start_date = now - timedelta(days=7)
+    elif period == "30d":
+        start_date = now - timedelta(days=30)
+    elif period == "90d":
+        start_date = now - timedelta(days=90)
+    else:
+        start_date = datetime(2020, 1, 1, tzinfo=timezone.utc)
+    
+    start_iso = start_date.isoformat()
+    
+    # Get posts with date filter
+    post_query = {"user_id": user["user_id"]}
+    if company_id:
+        post_query["company_id"] = company_id
+    
+    posts = await db.posts.find(post_query, {"_id": 0}).to_list(10000)
+    
+    # Filter by date
+    filtered_posts = [p for p in posts if p.get("created_at", "") >= start_iso]
+    
+    # Calculate metrics
+    total_posts = len(filtered_posts)
+    published_posts = len([p for p in filtered_posts if p.get("status") == "published"])
+    scheduled_posts = len([p for p in filtered_posts if p.get("status") == "scheduled"])
+    draft_posts = len([p for p in filtered_posts if p.get("status") == "draft"])
+    
+    total_views = sum(p.get("views", 0) for p in filtered_posts)
+    total_clicks = sum(p.get("clicks", 0) for p in filtered_posts)
+    total_likes = sum(p.get("likes", 0) for p in filtered_posts)
+    total_shares = sum(p.get("shares", 0) for p in filtered_posts)
+    
+    # Platform breakdown
+    platform_stats = {}
+    for post in filtered_posts:
+        for platform in post.get("platforms", []):
+            if platform not in platform_stats:
+                platform_stats[platform] = {"posts": 0, "views": 0, "clicks": 0, "likes": 0}
+            platform_stats[platform]["posts"] += 1
+            platform_stats[platform]["views"] += post.get("views", 0)
+            platform_stats[platform]["clicks"] += post.get("clicks", 0)
+            platform_stats[platform]["likes"] += post.get("likes", 0)
+    
+    # Landing page analytics
+    page_query = {"user_id": user["user_id"]}
+    if company_id:
+        page_query["company_id"] = company_id
+    
+    pages = await db.landing_pages.find(page_query, {"_id": 0}).to_list(1000)
+    
+    total_page_views = sum(p.get("views", 0) for p in pages)
+    total_conversions = sum(p.get("conversions", 0) for p in pages)
+    conversion_rate = (total_conversions / total_page_views * 100) if total_page_views > 0 else 0
+    
+    # Top performing pages
+    top_pages = sorted(pages, key=lambda p: p.get("conversions", 0), reverse=True)[:5]
+    
+    # Lead analytics
+    page_ids = [p["page_id"] for p in pages]
+    leads = await db.leads.find({"page_id": {"$in": page_ids}}, {"_id": 0}).to_list(10000)
+    filtered_leads = [l for l in leads if l.get("created_at", "") >= start_iso]
+    
+    lead_status_breakdown = {}
+    for lead in filtered_leads:
+        status = lead.get("status", "new")
+        lead_status_breakdown[status] = lead_status_breakdown.get(status, 0) + 1
+    
+    # Daily trend (last 7 days)
+    daily_trend = []
+    for i in range(7):
+        day = now - timedelta(days=i)
+        day_str = day.strftime("%Y-%m-%d")
+        day_posts = len([p for p in filtered_posts if p.get("created_at", "").startswith(day_str)])
+        day_leads = len([l for l in filtered_leads if l.get("created_at", "").startswith(day_str)])
+        daily_trend.append({
+            "date": day_str,
+            "posts": day_posts,
+            "leads": day_leads
+        })
+    
+    return {
+        "period": period,
+        "posts": {
+            "total": total_posts,
+            "published": published_posts,
+            "scheduled": scheduled_posts,
+            "drafts": draft_posts,
+            "engagement": {
+                "views": total_views,
+                "clicks": total_clicks,
+                "likes": total_likes,
+                "shares": total_shares,
+                "ctr": round(total_clicks / total_views * 100, 2) if total_views > 0 else 0
+            }
+        },
+        "platforms": platform_stats,
+        "landing_pages": {
+            "total": len(pages),
+            "views": total_page_views,
+            "conversions": total_conversions,
+            "conversion_rate": round(conversion_rate, 2),
+            "top_performing": [
+                {"name": p.get("name"), "views": p.get("views", 0), "conversions": p.get("conversions", 0)}
+                for p in top_pages
+            ]
+        },
+        "leads": {
+            "total": len(filtered_leads),
+            "by_status": lead_status_breakdown
+        },
+        "daily_trend": list(reversed(daily_trend))
+    }
+
 # Include router
 app.include_router(api_router)
 
