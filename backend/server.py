@@ -988,9 +988,21 @@ async def get_subscription(user: dict = Depends(get_current_user)):
     plan = await get_user_plan(user)
     usage = await get_user_usage(user["user_id"])
     limits = plan.get("limits", {})
+    sub_status = await check_subscription_active(user)
+    
+    # Get team member count if user has a company
+    team_members_count = 0
+    team_members_limit = limits.get("team_members", 3)
+    company_id = user.get("active_company_id")
+    if company_id:
+        team_members_count = await db.workspace_members.count_documents({
+            "company_id": company_id,
+            "status": "active"
+        })
     
     return {
         "plan": plan,
+        "subscription_status": sub_status,
         "usage": {
             "posts_this_month": usage["posts_this_month"],
             "posts_limit": limits.get("posts_per_month", 0),
@@ -1001,7 +1013,9 @@ async def get_subscription(user: dict = Depends(get_current_user)):
             "ai_generations_this_month": usage["ai_generations_this_month"],
             "ai_generations_limit": limits.get("ai_generations_per_month", 0),
             "social_accounts_count": usage["social_accounts_count"],
-            "social_accounts_limit": limits.get("social_accounts", 0)
+            "social_accounts_limit": limits.get("social_accounts", 0),
+            "team_members_count": team_members_count,
+            "team_members_limit": team_members_limit
         },
         "expires_at": user.get("plan_expires_at")
     }
