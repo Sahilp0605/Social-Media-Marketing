@@ -2070,9 +2070,23 @@ async def invite_member(invite: WorkspaceInviteCreate, user: dict = Depends(get_
     if not company_id:
         raise HTTPException(status_code=400, detail="No active workspace")
     
+    # Check subscription is active
+    sub_status = await check_subscription_active(user)
+    if not sub_status["is_active"]:
+        raise HTTPException(status_code=402, detail="Your subscription has expired. Please upgrade to invite members.")
+    
     # Check permissions
     if not check_permission(user, "manage_members"):
         raise HTTPException(status_code=403, detail="Permission denied")
+    
+    # Check team member limit based on plan
+    if not await check_team_member_limit(company_id, user):
+        plan = await get_user_plan(user)
+        limit = plan.get("limits", {}).get("team_members", 3)
+        raise HTTPException(
+            status_code=403, 
+            detail=f"Team member limit reached ({limit} members). Please upgrade your plan to invite more members."
+        )
     
     # Check if already a member
     existing = await db.workspace_members.find_one(
