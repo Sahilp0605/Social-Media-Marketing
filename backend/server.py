@@ -1,4 +1,4 @@
-from fastapi import FastAPI, APIRouter, HTTPException, Depends, Response, Request
+from fastapi import FastAPI, APIRouter, HTTPException, Depends, Response, Request, Query
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
@@ -6,13 +6,14 @@ import os
 import logging
 from pathlib import Path
 from pydantic import BaseModel, Field, ConfigDict, EmailStr
-from typing import List, Optional, Dict
+from typing import List, Optional, Dict, Literal
 import uuid
 from datetime import datetime, timezone, timedelta
 import jwt
 import bcrypt
 import httpx
 import base64
+from enum import Enum
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
@@ -30,6 +31,15 @@ JWT_ALGORITHM = "HS256"
 PAYMENT_MODE = os.environ.get('PAYMENT_MODE', 'mock')  # 'mock' or 'stripe'
 STRIPE_API_KEY = os.environ.get('STRIPE_API_KEY', '')
 
+# Meta (Facebook/Instagram) Configuration
+META_APP_ID = os.environ.get('META_APP_ID', '')
+META_APP_SECRET = os.environ.get('META_APP_SECRET', '')
+META_REDIRECT_URI = os.environ.get('META_REDIRECT_URI', '')
+
+# WhatsApp Configuration
+WHATSAPP_PHONE_NUMBER_ID = os.environ.get('WHATSAPP_PHONE_NUMBER_ID', '')
+WHATSAPP_ACCESS_TOKEN = os.environ.get('WHATSAPP_ACCESS_TOKEN', '')
+
 # Create the main app
 app = FastAPI(title="SocialFlow AI API")
 
@@ -39,6 +49,21 @@ api_router = APIRouter(prefix="/api")
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
+
+# ================== WORKSPACE ROLES ==================
+
+class WorkspaceRole(str, Enum):
+    OWNER = "owner"      # Full access
+    ADMIN = "admin"      # Manage campaigns & leads
+    EDITOR = "editor"    # Create posts
+    VIEWER = "viewer"    # Read-only analytics
+
+ROLE_PERMISSIONS = {
+    WorkspaceRole.OWNER: ["*"],  # All permissions
+    WorkspaceRole.ADMIN: ["read", "write", "manage_campaigns", "manage_leads", "manage_members", "view_analytics"],
+    WorkspaceRole.EDITOR: ["read", "write", "create_posts", "create_templates", "view_analytics"],
+    WorkspaceRole.VIEWER: ["read", "view_analytics"]
+}
 
 # ================== PLAN CONFIGURATION ==================
 
