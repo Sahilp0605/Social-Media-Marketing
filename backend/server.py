@@ -1411,7 +1411,7 @@ async def get_leads(user: dict = Depends(get_current_user)):
     
     # Get leads for those pages
     leads = await db.leads.find({"page_id": {"$in": page_ids}}, {"_id": 0}).sort("created_at", -1).to_list(1000)
-    return [LeadResponse(**l) for l in leads]
+    return [LeadResponse(**lead) for lead in leads]
 
 @api_router.put("/leads/{lead_id}/status")
 async def update_lead_status(lead_id: str, status: str, user: dict = Depends(get_current_user)):
