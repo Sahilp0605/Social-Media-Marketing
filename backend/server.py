@@ -2721,7 +2721,7 @@ async def get_detailed_analytics(
     # Lead analytics
     page_ids = [p["page_id"] for p in pages]
     leads = await db.leads.find({"page_id": {"$in": page_ids}}, {"_id": 0}).to_list(10000)
-    filtered_leads = [l for l in leads if l.get("created_at", "") >= start_iso]
+    filtered_leads = [lead for lead in leads if lead.get("created_at", "") >= start_iso]
     
     lead_status_breakdown = {}
     for lead in filtered_leads:
@@ -2734,7 +2734,7 @@ async def get_detailed_analytics(
         day = now - timedelta(days=i)
         day_str = day.strftime("%Y-%m-%d")
         day_posts = len([p for p in filtered_posts if p.get("created_at", "").startswith(day_str)])
-        day_leads = len([l for l in filtered_leads if l.get("created_at", "").startswith(day_str)])
+        day_leads = len([lead for lead in filtered_leads if lead.get("created_at", "").startswith(day_str)])
         daily_trend.append({
             "date": day_str,
             "posts": day_posts,
