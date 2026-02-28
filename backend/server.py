@@ -601,6 +601,75 @@ async def track_ai_usage(user_id: str, usage_type: str):
         "created_at": datetime.now(timezone.utc).isoformat()
     })
 
+async def check_subscription_active(user: dict) -> dict:
+    """Check if user has an active subscription and return status"""
+    plan = await get_user_plan(user)
+    plan_id = plan.get("plan_id", "free")
+    plan_expires_at = user.get("plan_expires_at")
+    
+    # Check expiry
+    is_expired = False
+    days_remaining = None
+    
+    if plan_expires_at:
+        if isinstance(plan_expires_at, str):
+            plan_expires_at = datetime.fromisoformat(plan_expires_at.replace('Z', '+00:00'))
+        if plan_expires_at.tzinfo is None:
+            plan_expires_at = plan_expires_at.replace(tzinfo=timezone.utc)
+        
+        now = datetime.now(timezone.utc)
+        if plan_expires_at < now:
+            is_expired = True
+        else:
+            days_remaining = (plan_expires_at - now).days
+    
+    return {
+        "is_active": not is_expired,
+        "plan_id": plan_id if not is_expired else "expired",
+        "plan_name": plan.get("name", "Free Trial"),
+        "is_expired": is_expired,
+        "days_remaining": days_remaining,
+        "limits": plan.get("limits", {})
+    }
+
+async def require_active_subscription(user: dict) -> dict:
+    """Dependency that requires active subscription - raises 402 if expired"""
+    status = await check_subscription_active(user)
+    if not status["is_active"]:
+        raise HTTPException(
+            status_code=402, 
+            detail="Your subscription has expired. Please upgrade to continue using the platform."
+        )
+    return status
+
+async def check_team_member_limit(company_id: str, user: dict) -> bool:
+    """Check if company can add more team members based on plan"""
+    plan = await get_user_plan(user)
+    limits = plan.get("limits", {})
+    member_limit = limits.get("team_members", 3)
+    
+    if member_limit == -1:
+        return True  # Unlimited
+    
+    current_members = await db.workspace_members.count_documents({
+        "company_id": company_id,
+        "status": "active"
+    })
+    
+    return current_members < member_limit
+
+async def get_company_plan(company_id: str) -> dict:
+    """Get the plan for a company (from owner's subscription)"""
+    company = await db.companies.find_one({"company_id": company_id}, {"_id": 0})
+    if not company:
+        return PLANS["free"]
+    
+    owner = await db.users.find_one({"user_id": company.get("owner_id")}, {"_id": 0})
+    if not owner:
+        return PLANS["free"]
+    
+    return await get_user_plan(owner)
+
 # ================== AUTH ROUTES ==================
 
 @api_router.post("/auth/register")
