@@ -4,7 +4,7 @@ from datetime import datetime
 import json
 
 class EnhancedSocialFlowTester:
-    def __init__(self, base_url="https://lead-capture-post.preview.emergentagent.com/api"):
+    def __init__(self, base_url="https://post-flow-ai.preview.emergentagent.com/api"):
         self.base_url = base_url
         self.session = requests.Session()
         self.tests_run = 0
@@ -248,7 +248,7 @@ class EnhancedSocialFlowTester:
         # Test creating checkout session for professional plan
         checkout_data = {
             "plan_id": "professional", 
-            "origin_url": "https://lead-capture-post.preview.emergentagent.com"
+            "origin_url": "https://post-flow-ai.preview.emergentagent.com"
         }
         
         success, response = self.run_test(
