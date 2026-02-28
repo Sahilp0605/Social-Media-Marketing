@@ -22,6 +22,7 @@ import Subscription from "@/pages/Subscription";
 import SubscriptionSuccess from "@/pages/SubscriptionSuccess";
 import PublicLandingPage from "@/pages/PublicLandingPage";
 import SocialAccounts from "@/pages/SocialAccounts";
+import WorkspaceSettings from "@/pages/WorkspaceSettings";
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 export const API = `${BACKEND_URL}/api`;
