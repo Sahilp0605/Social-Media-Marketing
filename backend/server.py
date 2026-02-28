@@ -678,6 +678,7 @@ async def get_analytics_overview(user: dict = Depends(get_current_user)):
 @api_router.post("/ai/generate")
 async def generate_ai_content(req: AIGenerateRequest, user: dict = Depends(get_current_user)):
     api_key = os.environ.get("EMERGENT_LLM_KEY")
+    print("EMERGENT_LLM_KEY:", os.environ.get("EMERGENT_LLM_KEY"))
     if not api_key:
         raise HTTPException(status_code=500, detail="AI service not configured")
     
