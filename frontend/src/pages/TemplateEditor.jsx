@@ -36,7 +36,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { fabric } from "fabric";
+import * as fabric from "fabric";
 
 const TemplateEditor = () => {
   const navigate = useNavigate();
