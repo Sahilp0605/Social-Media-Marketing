@@ -77,6 +77,7 @@ const WorkspaceSettings = () => {
   const [members, setMembers] = useState([]);
   const [invites, setInvites] = useState([]);
   const [whatsappStatus, setWhatsappStatus] = useState(null);
+  const [subscription, setSubscription] = useState(null);
   const [loading, setLoading] = useState(true);
   const [userRole, setUserRole] = useState(null);
   const [inviteDialogOpen, setInviteDialogOpen] = useState(false);
@@ -86,6 +87,7 @@ const WorkspaceSettings = () => {
   useEffect(() => {
     fetchWorkspace();
     fetchWhatsappStatus();
+    fetchSubscription();
   }, []);
 
   const fetchWorkspace = async () => {
