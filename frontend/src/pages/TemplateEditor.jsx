@@ -153,11 +153,11 @@ const TemplateEditor = () => {
   };
 
   const addImage = (url) => {
-    fabric.Image.fromURL(url, (img) => {
+    fabric.FabricImage.fromURL(url, { crossOrigin: 'anonymous' }).then((img) => {
       img.scaleToWidth(300);
       fabricCanvasRef.current.add(img);
       fabricCanvasRef.current.setActiveObject(img);
-    }, { crossOrigin: 'anonymous' });
+    });
   };
 
   const handleImageUpload = (e) => {
