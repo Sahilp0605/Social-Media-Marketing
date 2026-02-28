@@ -252,6 +252,11 @@ class SocialAccountResponse(BaseModel):
     account_name: str
     external_id: Optional[str]
     is_connected: bool = True
+    followers_count: Optional[int] = 0
+    following_count: Optional[int] = 0
+    posts_count: Optional[int] = 0
+    engagement_rate: Optional[float] = 0.0
+    last_synced_at: Optional[str] = None
     created_at: str
 
 class AIGenerateRequest(BaseModel):
