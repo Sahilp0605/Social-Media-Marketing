@@ -421,7 +421,50 @@ async def get_current_user(request: Request) -> dict:
     if not user:
         raise HTTPException(status_code=401, detail="User not found")
     
+    # Get user's active company context
+    company_id = user.get("active_company_id")
+    if company_id:
+        membership = await db.workspace_members.find_one(
+            {"user_id": user["user_id"], "company_id": company_id, "status": "active"},
+            {"_id": 0}
+        )
+        if membership:
+            user["company_id"] = company_id
+            user["workspace_role"] = membership.get("role", "viewer")
+        else:
+            # User no longer has access to this company
+            user["company_id"] = None
+            user["workspace_role"] = None
+    
     return user
+
+async def get_current_user_with_company(request: Request) -> dict:
+    """Get current user and ensure they have an active company"""
+    user = await get_current_user(request)
+    if not user.get("company_id"):
+        raise HTTPException(status_code=400, detail="No active workspace. Please create or join a company.")
+    return user
+
+def check_permission(user: dict, permission: str) -> bool:
+    """Check if user has specific permission in current workspace"""
+    role = user.get("workspace_role")
+    if not role:
+        return False
+    
+    role_enum = WorkspaceRole(role) if role in [r.value for r in WorkspaceRole] else None
+    if not role_enum:
+        return False
+    
+    permissions = ROLE_PERMISSIONS.get(role_enum, [])
+    return "*" in permissions or permission in permissions
+
+def require_permission(permission: str):
+    """Dependency to require specific permission"""
+    async def check(user: dict = Depends(get_current_user_with_company)):
+        if not check_permission(user, permission):
+            raise HTTPException(status_code=403, detail=f"Permission denied: {permission}")
+        return user
+    return check
 
 # ================== PLAN HELPERS ==================
 
