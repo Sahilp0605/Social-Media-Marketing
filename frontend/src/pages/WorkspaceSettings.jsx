@@ -265,58 +265,87 @@ const WorkspaceSettings = () => {
               <CardTitle className="font-heading flex items-center gap-2">
                 <Users className="w-5 h-5" />
                 Team Members
+                {subscription && (
+                  <span className="text-sm font-normal text-slate-500">
+                    ({subscription.usage?.team_members_count || members.length} / {subscription.usage?.team_members_limit === -1 ? '∞' : subscription.usage?.team_members_limit || 3})
+                  </span>
+                )}
               </CardTitle>
               <CardDescription>Manage your workspace team and their permissions</CardDescription>
             </div>
             {canManageMembers && (
-              <Dialog open={inviteDialogOpen} onOpenChange={setInviteDialogOpen}>
-                <DialogTrigger asChild>
-                  <Button className="bg-indigo-600 hover:bg-indigo-700 text-white" data-testid="invite-member-btn">
+              <>
+                {subscription && subscription.usage?.team_members_limit !== -1 && 
+                 (subscription.usage?.team_members_count || members.length) >= (subscription.usage?.team_members_limit || 3) ? (
+                  <Button 
+                    className="bg-slate-300 text-slate-600 cursor-not-allowed" 
+                    disabled
+                    data-testid="invite-member-btn-disabled"
+                  >
                     <UserPlus className="w-4 h-4 mr-2" />
-                    Invite Member
+                    Limit Reached
                   </Button>
-                </DialogTrigger>
-                <DialogContent>
-                  <DialogHeader>
-                    <DialogTitle className="font-heading">Invite Team Member</DialogTitle>
-                  </DialogHeader>
-                  <form onSubmit={handleInvite} className="space-y-4 mt-4">
-                    <div>
-                      <Label htmlFor="email">Email Address</Label>
-                      <Input
-                        id="email"
-                        type="email"
-                        placeholder="colleague@company.com"
-                        className="mt-1.5"
-                        value={inviteForm.email}
-                        onChange={(e) => setInviteForm({ ...inviteForm, email: e.target.value })}
-                        required
-                        data-testid="invite-email-input"
-                      />
-                    </div>
-                    <div>
-                      <Label>Role</Label>
-                      <Select value={inviteForm.role} onValueChange={(v) => setInviteForm({ ...inviteForm, role: v })}>
-                        <SelectTrigger className="mt-1.5" data-testid="invite-role-select">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="admin">Admin - Manage campaigns & leads</SelectItem>
-                          <SelectItem value="editor">Editor - Create posts & templates</SelectItem>
-                          <SelectItem value="viewer">Viewer - Read-only analytics</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <Button type="submit" className="w-full bg-indigo-600 hover:bg-indigo-700 text-white" disabled={inviting}>
-                      {inviting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Mail className="w-4 h-4 mr-2" />}
-                      Send Invitation
-                    </Button>
-                  </form>
-                </DialogContent>
-              </Dialog>
+                ) : (
+                  <Dialog open={inviteDialogOpen} onOpenChange={setInviteDialogOpen}>
+                    <DialogTrigger asChild>
+                      <Button className="bg-indigo-600 hover:bg-indigo-700 text-white" data-testid="invite-member-btn">
+                        <UserPlus className="w-4 h-4 mr-2" />
+                        Invite Member
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent>
+                      <DialogHeader>
+                        <DialogTitle className="font-heading">Invite Team Member</DialogTitle>
+                      </DialogHeader>
+                      <form onSubmit={handleInvite} className="space-y-4 mt-4">
+                        <div>
+                          <Label htmlFor="email">Email Address</Label>
+                          <Input
+                            id="email"
+                            type="email"
+                            placeholder="colleague@company.com"
+                            className="mt-1.5"
+                            value={inviteForm.email}
+                            onChange={(e) => setInviteForm({ ...inviteForm, email: e.target.value })}
+                            required
+                            data-testid="invite-email-input"
+                          />
+                        </div>
+                        <div>
+                          <Label>Role</Label>
+                          <Select value={inviteForm.role} onValueChange={(v) => setInviteForm({ ...inviteForm, role: v })}>
+                            <SelectTrigger className="mt-1.5" data-testid="invite-role-select">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="admin">Admin - Manage campaigns & leads</SelectItem>
+                              <SelectItem value="editor">Editor - Create posts & templates</SelectItem>
+                              <SelectItem value="viewer">Viewer - Read-only analytics</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <Button type="submit" className="w-full bg-indigo-600 hover:bg-indigo-700 text-white" disabled={inviting}>
+                          {inviting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Mail className="w-4 h-4 mr-2" />}
+                          Send Invitation
+                        </Button>
+                      </form>
+                    </DialogContent>
+                  </Dialog>
+                )}
+              </>
             )}
           </CardHeader>
           <CardContent>
+            {/* Team Limit Warning */}
+            {subscription && subscription.usage?.team_members_limit !== -1 && 
+             (subscription.usage?.team_members_count || members.length) >= (subscription.usage?.team_members_limit || 3) && (
+              <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                <p className="text-sm text-amber-800">
+                  <AlertTriangle className="w-4 h-4 inline mr-1" />
+                  Team member limit reached. <a href="/subscription" className="underline font-medium">Upgrade your plan</a> to invite more members.
+                </p>
+              </div>
+            )}
             <div className="space-y-3">
               {members.map((member) => {
                 const RoleIcon = roleIcons[member.role] || Eye;
