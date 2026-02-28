@@ -766,9 +766,32 @@ async def exchange_session(request: Request, response: Response):
     user = await db.users.find_one({"email": oauth_data["email"]}, {"_id": 0})
     now = datetime.now(timezone.utc)
     
+    company_id = None
+    workspace_role = None
+    
     if not user:
         user_id = f"user_{uuid.uuid4().hex[:12]}"
+        company_id = f"company_{uuid.uuid4().hex[:12]}"
         trial_expires = (now + timedelta(days=14)).isoformat()
+        
+        # Create default company for OAuth user
+        company_doc = {
+            "company_id": company_id,
+            "name": f"{oauth_data['name']}'s Workspace",
+            "industry": None,
+            "owner_id": user_id,
+            "plan": "free",
+            "plan_expires_at": trial_expires,
+            "whatsapp_settings": {
+                "enabled": False,
+                "on_new_lead": True,
+                "on_post_published": False,
+                "template_name": "lead_notification"
+            },
+            "created_at": now.isoformat()
+        }
+        await db.companies.insert_one(company_doc)
+        
         user = {
             "user_id": user_id,
             "email": oauth_data["email"],
@@ -777,11 +800,28 @@ async def exchange_session(request: Request, response: Response):
             "role": "user",
             "plan": "free",
             "plan_expires_at": trial_expires,
+            "active_company_id": company_id,
             "created_at": now.isoformat()
         }
         await db.users.insert_one(user)
+        
+        # Add user as owner of the company
+        member_doc = {
+            "member_id": f"member_{uuid.uuid4().hex[:12]}",
+            "company_id": company_id,
+            "user_id": user_id,
+            "email": oauth_data["email"],
+            "name": oauth_data["name"],
+            "role": "owner",
+            "invited_by": user_id,
+            "status": "active",
+            "created_at": now.isoformat()
+        }
+        await db.workspace_members.insert_one(member_doc)
+        workspace_role = "owner"
     else:
         user_id = user["user_id"]
+        company_id = user.get("active_company_id")
         # Update picture if changed
         if oauth_data.get("picture") != user.get("picture"):
             await db.users.update_one(
@@ -789,6 +829,15 @@ async def exchange_session(request: Request, response: Response):
                 {"$set": {"picture": oauth_data.get("picture")}}
             )
             user["picture"] = oauth_data.get("picture")
+        
+        # Get workspace role
+        if company_id:
+            membership = await db.workspace_members.find_one(
+                {"user_id": user_id, "company_id": company_id, "status": "active"},
+                {"_id": 0}
+            )
+            if membership:
+                workspace_role = membership.get("role")
     
     # Create local session
     session_token = oauth_data.get("session_token", f"session_{uuid.uuid4().hex}")
@@ -818,6 +867,8 @@ async def exchange_session(request: Request, response: Response):
         "role": user.get("role", "user"),
         "plan": user.get("plan", "free"),
         "plan_expires_at": user.get("plan_expires_at"),
+        "company_id": company_id,
+        "workspace_role": workspace_role,
         "created_at": user["created_at"]
     }
 
@@ -831,6 +882,8 @@ async def get_me(user: dict = Depends(get_current_user)):
         "role": user.get("role", "user"),
         "plan": user.get("plan", "free"),
         "plan_expires_at": user.get("plan_expires_at"),
+        "company_id": user.get("company_id"),
+        "workspace_role": user.get("workspace_role"),
         "created_at": user["created_at"]
     }
 
