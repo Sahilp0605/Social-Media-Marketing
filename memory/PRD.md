@@ -24,7 +24,7 @@ Build a Social Media Marketing Software platform where businesses can:
 - Analytics dashboard
 - Subscription plans with feature gating
 
-## What's Been Implemented (Feb 2026)
+## What's Been Implemented (Feb 28, 2026)
 
 ### Backend (FastAPI + MongoDB)
 - ✅ User authentication (JWT + Emergent Google OAuth)
@@ -36,7 +36,8 @@ Build a Social Media Marketing Software platform where businesses can:
 - ✅ Templates CRUD API with canvas_data for editor
 - ✅ Landing Pages CRUD API with slug generation
 - ✅ Lead capture API (public endpoint)
-- ✅ Social Accounts management API
+- ✅ **Mock Social Accounts API** - Connect, Sync with simulated stats, Test posting
+- ✅ **Post Scheduler API** - Queue management, process scheduled posts
 - ✅ Campaigns CRUD API
 - ✅ Analytics overview API
 - ✅ AI content generation (Gemini 3 Flash for captions/hashtags)
@@ -47,13 +48,13 @@ Build a Social Media Marketing Software platform where businesses can:
 - ✅ Login/Register with Google OAuth support
 - ✅ Dashboard with analytics overview
 - ✅ **Subscription page** with plan management, usage stats, payment mode toggle
-- ✅ Post Creator with AI caption/hashtag generation + scheduling
+- ✅ **Post Creator** with AI caption/hashtag generation, scheduling, and publish buttons
 - ✅ Templates gallery with AI image generation
 - ✅ **Template Editor** with Fabric.js (drag-drop text, shapes, images)
 - ✅ Landing Pages builder with live preview
 - ✅ Public landing pages with lead capture forms
 - ✅ Leads management CRM with status updates
-- ✅ **Social Accounts** management page
+- ✅ **Social Accounts** page with Sync, Test Post, and Demo Mode notice
 - ✅ Campaigns manager with calendar dates
 - ✅ Analytics dashboard with charts (Recharts)
 - ✅ Settings page
@@ -66,20 +67,34 @@ Build a Social Media Marketing Software platform where businesses can:
 | Professional | $79/mo | 15 accounts, unlimited posts, 50 templates, 20 landing pages, 100 AI generations |
 | Enterprise | $199/mo | Unlimited everything, White label, API access |
 
+### Mock Social Media Integration (NEW - Feb 28, 2026)
+- ✅ Connect accounts for Instagram, Facebook, LinkedIn, X (Twitter)
+- ✅ **Sync Account** - Returns simulated follower count (100-50K), engagement rate (1.5-8.5%)
+- ✅ **Test Post** - Returns simulated success with reach (100-5K)
+- ✅ Demo Mode notice visible on Social Accounts page
+- ✅ Mock tokens generated for connected accounts
+
+### Post Scheduling Backend (NEW - Feb 28, 2026)
+- ✅ Posts auto-set to "scheduled" status when future datetime provided
+- ✅ **Scheduler Queue** - Shows all scheduled posts with due status
+- ✅ **Process Scheduler** - Manually trigger publishing of due posts
+- ✅ Mock publish results include platform, account name, external URL, simulated reach
+- ✅ Frontend "Process Scheduled (X)" button visible when posts are scheduled
+
 ### Integrations
 - ✅ Gemini 3 Flash - AI text generation
 - ✅ Gemini Nano Banana - AI image generation
 - ✅ Emergent Google OAuth
 - ✅ Stripe (with mock mode toggle)
-- ⏸️ Social media posting APIs (MOCKED for MVP)
+- ✅ **Social media posting APIs (MOCKED for MVP)**
 - ⏸️ WhatsApp Business API (Skip for MVP)
 
 ## Prioritized Backlog
 
 ### P0 - Critical (Next Sprint)
-1. Real social media API integration (Instagram Business, Facebook Pages)
-2. Auto-publish scheduled posts
-3. Email notifications for new leads
+1. **Real social media API integration** (Instagram Business, Facebook Pages via Meta Graph API)
+2. Auto-publish scheduled posts (background job/cron)
+3. Email notifications for new leads (SendGrid/Resend)
 
 ### P1 - High Priority
 1. WhatsApp Business API integration
@@ -118,14 +133,21 @@ GET  /api/subscription/status/{session_id}
 GET  /api/admin/payment-mode
 POST /api/admin/payment-mode
 
-# Social Accounts
+# Social Accounts (NEW)
 GET/POST /api/social-accounts
 DELETE /api/social-accounts/{id}
+POST /api/social-accounts/{id}/sync      # Mock sync with simulated stats
+POST /api/social-accounts/{id}/test-post # Mock test post
 
 # Posts
 GET/POST /api/posts
 GET/PUT/DELETE /api/posts/{id}
 POST /api/posts/{id}/publish
+
+# Scheduler (NEW)
+GET  /api/posts/scheduled/pending
+POST /api/scheduler/process
+GET  /api/scheduler/queue
 
 # Templates
 GET/POST /api/templates
@@ -154,8 +176,13 @@ POST /api/ai/generate-image
 ```
 
 ## Next Tasks
-1. Connect Instagram Business API for real posting
-2. Implement background job for auto-publishing scheduled posts
-3. Add email notifications (SendGrid/Resend)
-4. Enhance template editor with layers and undo/redo
-5. Add UTM tracking to landing page URLs
+1. ⏳ Connect Instagram Business API for real posting (Meta Graph API)
+2. ⏳ Implement background job for auto-publishing scheduled posts (cron/celery)
+3. ⏳ Add email notifications for new leads (SendGrid/Resend)
+4. ⏳ Enhance template editor with layers and undo/redo
+5. ⏳ Add UTM tracking to landing page URLs
+
+## Architecture Notes
+- Backend: `server.py` is a monolith (~1600 lines). Consider splitting into modules (`routers/auth.py`, `routers/posts.py`, etc.)
+- Frontend: React with Tailwind + Shadcn UI components
+- Database: MongoDB with collections for users, posts, templates, landing_pages, leads, social_accounts, campaigns, ai_usage, payment_transactions
