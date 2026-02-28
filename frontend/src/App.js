@@ -3,6 +3,7 @@ import "@/App.css";
 import { BrowserRouter, Routes, Route, Navigate, useLocation, useNavigate } from "react-router-dom";
 import axios from "axios";
 import { Toaster } from "@/components/ui/sonner";
+import SubscriptionGuard from "@/components/SubscriptionGuard";
 
 // Pages
 import LandingPage from "@/pages/LandingPage";
@@ -76,8 +77,8 @@ export const AuthProvider = ({ children }) => {
   );
 };
 
-// Protected Route
-const ProtectedRoute = ({ children }) => {
+// Protected Route with Subscription Check
+const ProtectedRoute = ({ children, requireSubscription = true }) => {
   const { user, loading } = useAuth();
   const location = useLocation();
 
@@ -91,6 +92,11 @@ const ProtectedRoute = ({ children }) => {
 
   if (!user) {
     return <Navigate to="/login" state={{ from: location }} replace />;
+  }
+
+  // Wrap with subscription guard if required
+  if (requireSubscription) {
+    return <SubscriptionGuard>{children}</SubscriptionGuard>;
   }
 
   return children;
@@ -112,7 +118,7 @@ function AppRouter() {
       <Route path="/register" element={<RegisterPage />} />
       <Route path="/p/:slug" element={<PublicLandingPage />} />
       
-      {/* Protected Routes */}
+      {/* Protected Routes - All require active subscription */}
       <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
       <Route path="/posts" element={<ProtectedRoute><PostCreator /></ProtectedRoute>} />
       <Route path="/templates" element={<ProtectedRoute><Templates /></ProtectedRoute>} />
@@ -124,9 +130,11 @@ function AppRouter() {
       <Route path="/analytics" element={<ProtectedRoute><Analytics /></ProtectedRoute>} />
       <Route path="/social-accounts" element={<ProtectedRoute><SocialAccounts /></ProtectedRoute>} />
       <Route path="/workspace" element={<ProtectedRoute><WorkspaceSettings /></ProtectedRoute>} />
-      <Route path="/subscription" element={<ProtectedRoute><Subscription /></ProtectedRoute>} />
-      <Route path="/subscription/success" element={<ProtectedRoute><SubscriptionSuccess /></ProtectedRoute>} />
-      <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
+      
+      {/* Subscription page doesn't require subscription check (allow access to upgrade) */}
+      <Route path="/subscription" element={<ProtectedRoute requireSubscription={false}><Subscription /></ProtectedRoute>} />
+      <Route path="/subscription/success" element={<ProtectedRoute requireSubscription={false}><SubscriptionSuccess /></ProtectedRoute>} />
+      <Route path="/settings" element={<ProtectedRoute requireSubscription={false}><Settings /></ProtectedRoute>} />
     </Routes>
   );
 }
