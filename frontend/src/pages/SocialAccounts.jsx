@@ -13,7 +13,12 @@ import {
   Trash2,
   CheckCircle,
   AlertCircle,
-  Link as LinkIcon
+  Link as LinkIcon,
+  RefreshCw,
+  Send,
+  Users,
+  TrendingUp,
+  Loader2
 } from "lucide-react";
 import { toast } from "sonner";
 import axios from "axios";
@@ -44,6 +49,8 @@ const SocialAccounts = () => {
   const [accounts, setAccounts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [syncing, setSyncing] = useState({});
+  const [testingPost, setTestingPost] = useState({});
   const [form, setForm] = useState({
     platform: "",
     account_name: ""
@@ -68,7 +75,7 @@ const SocialAccounts = () => {
     e.preventDefault();
     try {
       await axios.post(`${API}/social-accounts`, form);
-      toast.success("Account connected!");
+      toast.success("Account connected successfully!");
       setDialogOpen(false);
       setForm({ platform: "", account_name: "" });
       fetchAccounts();
@@ -87,8 +94,40 @@ const SocialAccounts = () => {
     }
   };
 
+  const syncAccount = async (accountId) => {
+    setSyncing({ ...syncing, [accountId]: true });
+    try {
+      const res = await axios.post(`${API}/social-accounts/${accountId}/sync`);
+      toast.success(`Account synced! ${res.data.stats.followers_count.toLocaleString()} followers`);
+      fetchAccounts();
+    } catch (err) {
+      toast.error("Failed to sync account");
+    } finally {
+      setSyncing({ ...syncing, [accountId]: false });
+    }
+  };
+
+  const testPost = async (accountId) => {
+    setTestingPost({ ...testingPost, [accountId]: true });
+    try {
+      const res = await axios.post(`${API}/social-accounts/${accountId}/test-post`);
+      toast.success(res.data.message);
+    } catch (err) {
+      toast.error("Test post failed");
+    } finally {
+      setTestingPost({ ...testingPost, [accountId]: false });
+    }
+  };
+
   const getPlatformInfo = (platformId) => {
     return platforms.find(p => p.id === platformId) || platforms[0];
+  };
+
+  const formatNumber = (num) => {
+    if (!num) return "0";
+    if (num >= 1000000) return (num / 1000000).toFixed(1) + "M";
+    if (num >= 1000) return (num / 1000).toFixed(1) + "K";
+    return num.toLocaleString();
   };
 
   if (loading) {
@@ -162,7 +201,7 @@ const SocialAccounts = () => {
                     <div>
                       <p className="text-sm font-medium text-amber-800">Demo Mode</p>
                       <p className="text-xs text-amber-700 mt-1">
-                        This is a simulated connection. In production, you would connect via OAuth.
+                        This is a simulated connection for testing. In production, you would connect via OAuth with the actual platform APIs.
                       </p>
                     </div>
                   </div>
@@ -182,20 +221,31 @@ const SocialAccounts = () => {
           </Dialog>
         </div>
 
-        {/* Available Platforms */}
+        {/* Platform Overview Cards */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           {platforms.map((platform) => {
             const connectedCount = accounts.filter(a => a.platform === platform.id).length;
+            const totalFollowers = accounts
+              .filter(a => a.platform === platform.id)
+              .reduce((sum, a) => sum + (a.followers_count || 0), 0);
             return (
               <Card key={platform.id} className="border-slate-100 shadow-card">
-                <CardContent className="p-4 flex items-center gap-3">
-                  <div className={`w-12 h-12 rounded-xl bg-gradient-to-r ${platform.color} flex items-center justify-center`}>
-                    <platform.icon className="w-6 h-6 text-white" />
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-3 mb-3">
+                    <div className={`w-12 h-12 rounded-xl bg-gradient-to-r ${platform.color} flex items-center justify-center`}>
+                      <platform.icon className="w-6 h-6 text-white" />
+                    </div>
+                    <div>
+                      <p className="font-medium text-slate-900">{platform.name}</p>
+                      <p className="text-xs text-slate-500">{connectedCount} connected</p>
+                    </div>
                   </div>
-                  <div>
-                    <p className="font-medium text-slate-900">{platform.name}</p>
-                    <p className="text-xs text-slate-500">{connectedCount} connected</p>
-                  </div>
+                  {connectedCount > 0 && (
+                    <div className="flex items-center gap-2 text-sm text-slate-600">
+                      <Users className="w-4 h-4" />
+                      <span>{formatNumber(totalFollowers)} followers</span>
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             );
@@ -224,50 +274,132 @@ const SocialAccounts = () => {
                 </Button>
               </div>
             ) : (
-              <div className="space-y-3">
+              <div className="space-y-4">
                 {accounts.map((account) => {
                   const platform = getPlatformInfo(account.platform);
+                  const isSyncing = syncing[account.account_id];
+                  const isTesting = testingPost[account.account_id];
+                  
                   return (
                     <div 
                       key={account.account_id}
-                      className="flex items-center justify-between p-4 border border-slate-100 rounded-xl hover:border-slate-200 transition-colors"
+                      className="p-4 border border-slate-100 rounded-xl hover:border-slate-200 transition-colors"
+                      data-testid={`account-${account.account_id}`}
                     >
-                      <div className="flex items-center gap-4">
-                        <div className={`w-12 h-12 rounded-xl bg-gradient-to-r ${platform.color} flex items-center justify-center`}>
-                          <platform.icon className="w-6 h-6 text-white" />
+                      <div className="flex items-start justify-between">
+                        <div className="flex items-center gap-4">
+                          <div className={`w-14 h-14 rounded-xl bg-gradient-to-r ${platform.color} flex items-center justify-center`}>
+                            <platform.icon className="w-7 h-7 text-white" />
+                          </div>
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <p className="font-semibold text-slate-900">{account.account_name}</p>
+                              {account.is_connected ? (
+                                <span className="flex items-center gap-1 text-xs text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full">
+                                  <CheckCircle className="w-3 h-3" />
+                                  Connected
+                                </span>
+                              ) : (
+                                <span className="flex items-center gap-1 text-xs text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full">
+                                  <AlertCircle className="w-3 h-3" />
+                                  Disconnected
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-sm text-slate-500 mt-0.5">{platform.name} • {platform.description}</p>
+                            
+                            {/* Stats */}
+                            {account.followers_count > 0 && (
+                              <div className="flex items-center gap-4 mt-2 text-sm">
+                                <span className="flex items-center gap-1 text-slate-600">
+                                  <Users className="w-4 h-4" />
+                                  {formatNumber(account.followers_count)} followers
+                                </span>
+                                {account.engagement_rate > 0 && (
+                                  <span className="flex items-center gap-1 text-slate-600">
+                                    <TrendingUp className="w-4 h-4" />
+                                    {account.engagement_rate}% engagement
+                                  </span>
+                                )}
+                              </div>
+                            )}
+                          </div>
                         </div>
-                        <div>
-                          <p className="font-medium text-slate-900">{account.account_name}</p>
-                          <p className="text-sm text-slate-500">{platform.name} • {platform.description}</p>
+                        
+                        <div className="flex items-center gap-2">
+                          {/* Sync Button */}
+                          <Button 
+                            variant="outline" 
+                            size="sm"
+                            onClick={() => syncAccount(account.account_id)}
+                            disabled={isSyncing}
+                            data-testid={`sync-${account.account_id}`}
+                          >
+                            {isSyncing ? (
+                              <Loader2 className="w-4 h-4 animate-spin" />
+                            ) : (
+                              <RefreshCw className="w-4 h-4" />
+                            )}
+                            <span className="ml-1.5">Sync</span>
+                          </Button>
+                          
+                          {/* Test Post Button */}
+                          <Button 
+                            variant="outline" 
+                            size="sm"
+                            onClick={() => testPost(account.account_id)}
+                            disabled={isTesting}
+                            className="text-indigo-600 border-indigo-200 hover:bg-indigo-50"
+                            data-testid={`test-post-${account.account_id}`}
+                          >
+                            {isTesting ? (
+                              <Loader2 className="w-4 h-4 animate-spin" />
+                            ) : (
+                              <Send className="w-4 h-4" />
+                            )}
+                            <span className="ml-1.5">Test</span>
+                          </Button>
+                          
+                          {/* Disconnect Button */}
+                          <Button 
+                            variant="ghost" 
+                            size="sm" 
+                            className="text-red-500 hover:text-red-600 hover:bg-red-50"
+                            onClick={() => disconnectAccount(account.account_id)}
+                            data-testid={`disconnect-${account.account_id}`}
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
                         </div>
                       </div>
-                      <div className="flex items-center gap-3">
-                        {account.is_connected ? (
-                          <span className="flex items-center gap-1 text-sm text-emerald-600">
-                            <CheckCircle className="w-4 h-4" />
-                            Connected
-                          </span>
-                        ) : (
-                          <span className="flex items-center gap-1 text-sm text-amber-600">
-                            <AlertCircle className="w-4 h-4" />
-                            Disconnected
-                          </span>
-                        )}
-                        <Button 
-                          variant="ghost" 
-                          size="sm" 
-                          className="text-red-500 hover:text-red-600 hover:bg-red-50"
-                          onClick={() => disconnectAccount(account.account_id)}
-                          data-testid={`disconnect-${account.account_id}`}
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
-                      </div>
+                      
+                      {/* Last Synced */}
+                      {account.last_synced_at && (
+                        <p className="text-xs text-slate-400 mt-3">
+                          Last synced: {new Date(account.last_synced_at).toLocaleString()}
+                        </p>
+                      )}
                     </div>
                   );
                 })}
               </div>
             )}
+          </CardContent>
+        </Card>
+
+        {/* Demo Notice */}
+        <Card className="border-amber-200 bg-amber-50/50">
+          <CardContent className="p-4">
+            <div className="flex items-start gap-3">
+              <AlertCircle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
+              <div>
+                <p className="font-medium text-amber-800">Demo Mode Active</p>
+                <p className="text-sm text-amber-700 mt-1">
+                  All social media connections are simulated for testing purposes. Sync and test post features return mock data. 
+                  To connect real accounts, integrate with the official platform APIs (Meta Graph API for Instagram/Facebook, LinkedIn API, X API).
+                </p>
+              </div>
+            </div>
           </CardContent>
         </Card>
       </div>
