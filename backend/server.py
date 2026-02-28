@@ -607,10 +607,29 @@ async def register(user_data: UserCreate, response: Response):
         raise HTTPException(status_code=400, detail="Email already registered")
     
     user_id = f"user_{uuid.uuid4().hex[:12]}"
+    company_id = f"company_{uuid.uuid4().hex[:12]}"
     now = datetime.now(timezone.utc)
     
     # Set free trial expiry (14 days)
     trial_expires = (now + timedelta(days=14)).isoformat()
+    
+    # Create user's default company (workspace)
+    company_doc = {
+        "company_id": company_id,
+        "name": f"{user_data.name}'s Workspace",
+        "industry": None,
+        "owner_id": user_id,
+        "plan": "free",
+        "plan_expires_at": trial_expires,
+        "whatsapp_settings": {
+            "enabled": False,
+            "on_new_lead": True,
+            "on_post_published": False,
+            "template_name": "lead_notification"
+        },
+        "created_at": now.isoformat()
+    }
+    await db.companies.insert_one(company_doc)
     
     user_doc = {
         "user_id": user_id,
@@ -621,9 +640,24 @@ async def register(user_data: UserCreate, response: Response):
         "role": "user",
         "plan": "free",
         "plan_expires_at": trial_expires,
+        "active_company_id": company_id,
         "created_at": now.isoformat()
     }
     await db.users.insert_one(user_doc)
+    
+    # Add user as owner of the company
+    member_doc = {
+        "member_id": f"member_{uuid.uuid4().hex[:12]}",
+        "company_id": company_id,
+        "user_id": user_id,
+        "email": user_data.email,
+        "name": user_data.name,
+        "role": "owner",
+        "invited_by": user_id,
+        "status": "active",
+        "created_at": now.isoformat()
+    }
+    await db.workspace_members.insert_one(member_doc)
     
     # Create session
     session_token = f"session_{uuid.uuid4().hex}"
@@ -653,6 +687,8 @@ async def register(user_data: UserCreate, response: Response):
         "role": "user",
         "plan": "free",
         "plan_expires_at": trial_expires,
+        "company_id": company_id,
+        "workspace_role": "owner",
         "created_at": now.isoformat()
     }
 
