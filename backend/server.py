@@ -1483,7 +1483,7 @@ async def get_analytics_overview(user: dict = Depends(get_current_user)):
     page_ids = [p["page_id"] for p in pages]
     leads = await db.leads.find({"page_id": {"$in": page_ids}}, {"_id": 0}).to_list(1000)
     total_leads = len(leads)
-    new_leads = len([l for l in leads if l.get("status") == "new"])
+    new_leads = len([lead for lead in leads if lead.get("status") == "new"])
     
     # Get campaigns
     campaigns = await db.campaigns.find({"user_id": user["user_id"]}, {"_id": 0}).to_list(1000)
