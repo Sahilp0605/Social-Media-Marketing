@@ -9,122 +9,113 @@ Build a Social Media Marketing Software platform where businesses can:
 - Store contact info in database
 - Manage campaigns centrally
 
-## User Personas
-1. **Marketing Manager**: Needs to create, schedule, and analyze social media posts across platforms
-2. **Small Business Owner**: Wants to capture leads and manage marketing campaigns without technical expertise
-3. **Social Media Agency**: Manages multiple clients' social media presence from one dashboard
+## What's Been Implemented (Feb 28, 2026)
 
-## Core Requirements (Static)
-- User authentication (JWT + Google OAuth)
-- Post creation with AI-powered captions and hashtags
-- Template management (manual upload + AI generation)
-- Landing page builder for lead capture
-- Lead management CRM
-- Campaign management
-- Analytics dashboard
+### Subscription-Based Access Control (NEW)
+- ✅ **Subscription status check** on all protected routes
+- ✅ **SubscriptionGuard component** blocks expired users with upgrade prompt
+- ✅ **Team member limits per plan**:
+  - Free Trial: 3 members
+  - Starter: 2 members
+  - Professional: 10 members
+  - Enterprise: Unlimited
+- ✅ **Workspace invite checks** both subscription status AND team limit
+- ✅ **Frontend displays** team member usage (X/Y format)
+- ✅ **Invite button disabled** when limit reached with upgrade prompt
+- ✅ **Bypass for Subscription/Settings pages** (allow expired users to upgrade)
 
-## What's Been Implemented (MVP - Feb 2026)
+### Multi-User Workspace
+- ✅ Multi-tenant architecture with company_id isolation
+- ✅ Workspace roles: Owner, Admin, Editor, Viewer
+- ✅ Role-based permissions
+- ✅ Invite members, accept/decline invites
+- ✅ Switch workspaces, manage team
 
-### Backend (FastAPI + MongoDB)
-- ✅ User authentication (JWT + Emergent Google OAuth)
-- ✅ Posts CRUD API with platforms support
-- ✅ Templates CRUD API
-- ✅ Landing Pages CRUD API with slug generation
-- ✅ Lead capture API (public endpoint)
-- ✅ Campaigns CRUD API
-- ✅ Analytics overview API
-- ✅ AI content generation (Gemini 3 Flash for captions/hashtags)
-- ✅ AI image generation (Gemini Nano Banana)
+### Meta Graph API OAuth (Instagram/Facebook)
+- ✅ OAuth flow for Facebook Pages + Instagram Business
+- ✅ Long-lived token exchange
+- ✅ Real posting endpoints
+- **Note**: Requires META_APP_ID, META_APP_SECRET, META_REDIRECT_URI
 
-### Frontend (React + Tailwind)
-- ✅ Landing page with features, pricing, platforms
-- ✅ Login/Register with Google OAuth support
-- ✅ Dashboard with analytics overview
-- ✅ Post Creator with AI caption/hashtag generation
-- ✅ Templates gallery with AI image generation
-- ✅ Landing Pages builder with live preview
-- ✅ Public landing pages with lead capture forms
-- ✅ Leads management CRM with status updates
-- ✅ Campaigns manager with calendar dates
-- ✅ Analytics dashboard with charts (Recharts)
-- ✅ Settings page
+### WhatsApp Business API
+- ✅ Send template messages
+- ✅ Auto-notification on lead capture
+- **Note**: Requires WHATSAPP_PHONE_NUMBER_ID, WHATSAPP_ACCESS_TOKEN
 
-### Integrations
-- ✅ Gemini 3 Flash - AI text generation
-- ✅ Gemini Nano Banana - AI image generation
-- ✅ Emergent Google OAuth
-- ⏸️ Social media posting APIs (MOCKED for MVP)
-- ⏸️ WhatsApp Business API (Skip for MVP)
+### Core Features
+- ✅ User authentication (JWT + Google OAuth)
+- ✅ Subscription system (Starter $29, Professional $79, Enterprise $199)
+- ✅ 14-day free trial
+- ✅ Mock/Stripe payment toggle
+- ✅ Posts with scheduling
+- ✅ Templates with Fabric.js editor
+- ✅ Landing pages with lead capture
+- ✅ Lead management CRM
+- ✅ Social accounts (mock + real OAuth)
+- ✅ Advanced analytics
+- ✅ AI content generation (Gemini)
+
+### Subscription Plans
+| Plan | Price | Team Members | Posts | Templates | Landing Pages | AI |
+|------|-------|--------------|-------|-----------|---------------|-----|
+| Free Trial | $0 (14 days) | 3 | Unlimited | 50 | 20 | 100/mo |
+| Starter | $29/mo | 2 | 100/mo | 10 | 5 | None |
+| Professional | $79/mo | 10 | Unlimited | 50 | 20 | 100/mo |
+| Enterprise | $199/mo | Unlimited | Unlimited | Unlimited | Unlimited | Unlimited |
+
+### Environment Variables Required
+```
+# Database
+MONGO_URL=mongodb://localhost:27017
+DB_NAME=test_database
+
+# Auth
+JWT_SECRET=your_jwt_secret
+EMERGENT_LLM_KEY=sk-emergent-xxx
+
+# Payments
+STRIPE_API_KEY=sk_test_xxx
+PAYMENT_MODE=mock
+
+# Meta (Facebook/Instagram)
+META_APP_ID=your_meta_app_id
+META_APP_SECRET=your_meta_app_secret
+META_REDIRECT_URI=https://your-domain/api/oauth/meta/callback
+
+# WhatsApp Business
+WHATSAPP_PHONE_NUMBER_ID=your_phone_number_id
+WHATSAPP_ACCESS_TOKEN=your_whatsapp_token
+```
+
+## Key API Endpoints
+```
+# Subscription
+GET  /api/subscription - Returns plan, subscription_status, usage (including team_members)
+GET  /api/plans - Returns all plans with team_members limits
+
+# Workspace
+POST /api/workspace/invite - Checks subscription + team limit before inviting
+
+# All protected routes check subscription via SubscriptionGuard
+```
 
 ## Prioritized Backlog
 
-### P0 - Critical (Next Sprint)
-1. Social media API integration (Instagram Business, Facebook Pages)
-2. Post scheduling and publishing
-3. Real-time engagement tracking
+### P0 - Critical
+1. ~~Subscription-based access control~~ ✅ DONE
+2. Auto-publish scheduled posts (background job)
+3. Email notifications for new leads
 
 ### P1 - High Priority
-1. WhatsApp Business API integration
+1. Role-based UI restrictions (hide features based on role)
 2. Bulk scheduling feature
-3. Email notifications for new leads
-4. Template drag-drop editor
-5. UTM parameter tracking for landing pages
+3. Template editor improvements
 
 ### P2 - Medium Priority
-1. Multi-user workspace support
-2. Role-based access control
-3. Advanced analytics (demographics, device data)
-4. QR code generation for landing pages
-5. A/B testing for landing pages
+1. Activity logs per workspace
+2. Advanced analytics (demographics)
+3. QR codes for landing pages
 
-### P3 - Future Enhancements
-1. Automation engine (if lead captured → send WhatsApp)
-2. AI posting time recommendations
-3. Shopify/CRM integrations
-4. White-label support
-5. Mobile app
-
-## Tech Stack
-- **Backend**: FastAPI, MongoDB, Motor (async driver)
-- **Frontend**: React, Tailwind CSS, Shadcn/UI, Recharts
-- **AI**: Gemini 3 Flash (text), Gemini Nano Banana (images)
-- **Auth**: JWT + Emergent Google OAuth
-- **Deployment**: Kubernetes (Emergent)
-
-## API Endpoints Summary
-```
-POST /api/auth/register - User registration
-POST /api/auth/login - User login
-POST /api/auth/session - OAuth session exchange
-GET  /api/auth/me - Get current user
-POST /api/auth/logout - Logout
-
-GET/POST /api/posts - Posts CRUD
-GET/PUT/DELETE /api/posts/{id}
-
-GET/POST /api/templates - Templates CRUD
-DELETE /api/templates/{id}
-
-GET/POST /api/landing-pages - Landing pages CRUD
-GET/DELETE /api/landing-pages/{id}
-GET /api/p/{slug} - Public landing page
-
-POST /api/leads - Create lead (public)
-GET /api/leads - Get user's leads
-PUT /api/leads/{id}/status - Update lead status
-
-GET/POST /api/campaigns - Campaigns CRUD
-DELETE /api/campaigns/{id}
-
-GET /api/analytics/overview - Dashboard analytics
-
-POST /api/ai/generate - Generate caption/hashtags
-POST /api/ai/generate-image - Generate AI image
-```
-
-## Next Tasks
-1. Connect Instagram Business API for real posting
-2. Implement post scheduling queue
-3. Add email notifications (SendGrid/Resend)
-4. Build template drag-drop editor
-5. Add UTM tracking to landing page URLs
+## Test Reports
+- `/app/test_reports/iteration_1.json` through `iteration_6.json`
+- All features tested with 100% pass rate

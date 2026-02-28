@@ -4,7 +4,7 @@ from datetime import datetime
 import json
 
 class SocialFlowAPITester:
-    def __init__(self, base_url="https://lead-capture-post.preview.emergentagent.com/api"):
+    def __init__(self, base_url="https://post-flow-ai.preview.emergentagent.com/api"):
         self.base_url = base_url
         self.session = requests.Session()
         self.tests_run = 0

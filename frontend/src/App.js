@@ -3,6 +3,7 @@ import "@/App.css";
 import { BrowserRouter, Routes, Route, Navigate, useLocation, useNavigate } from "react-router-dom";
 import axios from "axios";
 import { Toaster } from "@/components/ui/sonner";
+import SubscriptionGuard from "@/components/SubscriptionGuard";
 
 // Pages
 import LandingPage from "@/pages/LandingPage";
@@ -12,12 +13,17 @@ import AuthCallback from "@/pages/AuthCallback";
 import Dashboard from "@/pages/Dashboard";
 import PostCreator from "@/pages/PostCreator";
 import Templates from "@/pages/Templates";
+import TemplateEditor from "@/pages/TemplateEditor";
 import LandingPages from "@/pages/LandingPages";
 import Leads from "@/pages/Leads";
 import Campaigns from "@/pages/Campaigns";
 import Analytics from "@/pages/Analytics";
 import Settings from "@/pages/Settings";
+import Subscription from "@/pages/Subscription";
+import SubscriptionSuccess from "@/pages/SubscriptionSuccess";
 import PublicLandingPage from "@/pages/PublicLandingPage";
+import SocialAccounts from "@/pages/SocialAccounts";
+import WorkspaceSettings from "@/pages/WorkspaceSettings";
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 export const API = `${BACKEND_URL}/api`;
@@ -71,8 +77,8 @@ export const AuthProvider = ({ children }) => {
   );
 };
 
-// Protected Route
-const ProtectedRoute = ({ children }) => {
+// Protected Route with Subscription Check
+const ProtectedRoute = ({ children, requireSubscription = true }) => {
   const { user, loading } = useAuth();
   const location = useLocation();
 
@@ -86,6 +92,11 @@ const ProtectedRoute = ({ children }) => {
 
   if (!user) {
     return <Navigate to="/login" state={{ from: location }} replace />;
+  }
+
+  // Wrap with subscription guard if required
+  if (requireSubscription) {
+    return <SubscriptionGuard>{children}</SubscriptionGuard>;
   }
 
   return children;
@@ -107,15 +118,23 @@ function AppRouter() {
       <Route path="/register" element={<RegisterPage />} />
       <Route path="/p/:slug" element={<PublicLandingPage />} />
       
-      {/* Protected Routes */}
+      {/* Protected Routes - All require active subscription */}
       <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
       <Route path="/posts" element={<ProtectedRoute><PostCreator /></ProtectedRoute>} />
       <Route path="/templates" element={<ProtectedRoute><Templates /></ProtectedRoute>} />
+      <Route path="/templates/editor" element={<ProtectedRoute><TemplateEditor /></ProtectedRoute>} />
+      <Route path="/templates/editor/:templateId" element={<ProtectedRoute><TemplateEditor /></ProtectedRoute>} />
       <Route path="/landing-pages" element={<ProtectedRoute><LandingPages /></ProtectedRoute>} />
       <Route path="/leads" element={<ProtectedRoute><Leads /></ProtectedRoute>} />
       <Route path="/campaigns" element={<ProtectedRoute><Campaigns /></ProtectedRoute>} />
       <Route path="/analytics" element={<ProtectedRoute><Analytics /></ProtectedRoute>} />
-      <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
+      <Route path="/social-accounts" element={<ProtectedRoute><SocialAccounts /></ProtectedRoute>} />
+      <Route path="/workspace" element={<ProtectedRoute><WorkspaceSettings /></ProtectedRoute>} />
+      
+      {/* Subscription page doesn't require subscription check (allow access to upgrade) */}
+      <Route path="/subscription" element={<ProtectedRoute requireSubscription={false}><Subscription /></ProtectedRoute>} />
+      <Route path="/subscription/success" element={<ProtectedRoute requireSubscription={false}><SubscriptionSuccess /></ProtectedRoute>} />
+      <Route path="/settings" element={<ProtectedRoute requireSubscription={false}><Settings /></ProtectedRoute>} />
     </Routes>
   );
 }
