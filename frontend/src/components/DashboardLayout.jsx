@@ -15,7 +15,8 @@ import {
   ChevronLeft,
   Menu,
   Link as LinkIcon,
-  CreditCard
+  CreditCard,
+  Building2
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -36,6 +37,7 @@ const navItems = [
   { path: "/campaigns", icon: Megaphone, label: "Campaigns" },
   { path: "/social-accounts", icon: LinkIcon, label: "Social Accounts" },
   { path: "/analytics", icon: BarChart3, label: "Analytics" },
+  { path: "/workspace", icon: Building2, label: "Workspace" },
   { path: "/subscription", icon: CreditCard, label: "Subscription" },
 ];
 
