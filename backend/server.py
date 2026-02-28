@@ -304,6 +304,79 @@ class UsageResponse(BaseModel):
     social_accounts_count: int
     social_accounts_limit: int
 
+# ================== WORKSPACE MODELS ==================
+
+class CompanyCreate(BaseModel):
+    name: str
+    industry: Optional[str] = None
+
+class CompanyResponse(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    company_id: str
+    name: str
+    industry: Optional[str]
+    owner_id: str
+    plan: str = "free"
+    plan_expires_at: Optional[str] = None
+    created_at: str
+
+class WorkspaceMemberCreate(BaseModel):
+    email: EmailStr
+    role: str = "viewer"
+
+class WorkspaceMemberResponse(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    member_id: str
+    company_id: str
+    user_id: str
+    email: str
+    name: str
+    role: str
+    invited_by: str
+    status: str = "active"
+    created_at: str
+
+class WorkspaceInviteCreate(BaseModel):
+    email: EmailStr
+    role: str = "viewer"
+
+class WorkspaceInviteResponse(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    invite_id: str
+    company_id: str
+    email: str
+    role: str
+    invited_by: str
+    status: str = "pending"
+    created_at: str
+    expires_at: str
+
+# ================== META OAUTH MODELS ==================
+
+class MetaOAuthCallback(BaseModel):
+    code: str
+    state: Optional[str] = None
+
+class MetaPageSelect(BaseModel):
+    page_id: str
+    page_name: str
+    access_token: str
+    instagram_business_id: Optional[str] = None
+
+# ================== WHATSAPP MODELS ==================
+
+class WhatsAppTemplateMessage(BaseModel):
+    to_phone: str
+    template_name: str
+    language_code: str = "en"
+    components: Optional[List[Dict]] = None
+
+class WhatsAppNotificationSettings(BaseModel):
+    enabled: bool = True
+    on_new_lead: bool = True
+    on_post_published: bool = False
+    template_name: str = "lead_notification"
+
 # ================== AUTH HELPERS ==================
 
 def hash_password(password: str) -> str:
