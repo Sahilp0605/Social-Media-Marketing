@@ -916,8 +916,11 @@ async def create_social_account(account: SocialAccountCreate, user: dict = Depen
         "user_id": user["user_id"],
         "platform": account.platform,
         "account_name": account.account_name,
-        "external_id": account.account_id,
+        "external_id": account.account_id or f"mock_{uuid.uuid4().hex[:8]}",
         "is_connected": True,
+        "access_token": f"mock_token_{uuid.uuid4().hex[:16]}",  # Mock token
+        "followers_count": 0,  # Will be updated by mock sync
+        "last_synced_at": now,
         "created_at": now
     }
     await db.social_accounts.insert_one(account_doc)
@@ -934,6 +937,58 @@ async def delete_social_account(account_id: str, user: dict = Depends(get_curren
     if result.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Account not found")
     return {"message": "Account disconnected"}
+
+@api_router.post("/social-accounts/{account_id}/sync")
+async def sync_social_account(account_id: str, user: dict = Depends(get_current_user)):
+    """Mock sync social account - simulates fetching latest stats from platform"""
+    account = await db.social_accounts.find_one(
+        {"account_id": account_id, "user_id": user["user_id"]}, {"_id": 0}
+    )
+    if not account:
+        raise HTTPException(status_code=404, detail="Account not found")
+    
+    # Simulate API response with random stats
+    import random
+    mock_stats = {
+        "followers_count": random.randint(100, 50000),
+        "following_count": random.randint(50, 1000),
+        "posts_count": random.randint(10, 500),
+        "engagement_rate": round(random.uniform(1.5, 8.5), 2),
+        "last_synced_at": datetime.now(timezone.utc).isoformat()
+    }
+    
+    await db.social_accounts.update_one(
+        {"account_id": account_id},
+        {"$set": mock_stats}
+    )
+    
+    return {
+        "message": "Account synced successfully (mock)",
+        "stats": mock_stats
+    }
+
+@api_router.post("/social-accounts/{account_id}/test-post")
+async def test_post_to_account(account_id: str, user: dict = Depends(get_current_user)):
+    """Mock test post - simulates posting a test message to the platform"""
+    account = await db.social_accounts.find_one(
+        {"account_id": account_id, "user_id": user["user_id"]}, {"_id": 0}
+    )
+    if not account:
+        raise HTTPException(status_code=404, detail="Account not found")
+    
+    # Simulate successful test post
+    import random
+    mock_response = {
+        "success": True,
+        "platform": account["platform"],
+        "account_name": account["account_name"],
+        "test_post_id": f"test_{uuid.uuid4().hex[:12]}",
+        "message": f"Test post to {account['platform']} successful!",
+        "simulated_reach": random.randint(100, 5000),
+        "timestamp": datetime.now(timezone.utc).isoformat()
+    }
+    
+    return mock_response
 
 # ================== POSTS ROUTES ==================
 
