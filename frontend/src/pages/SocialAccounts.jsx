@@ -449,6 +449,88 @@ const SocialAccounts = () => {
           </CardContent>
         </Card>
 
+        {/* Real API Connection Card */}
+        <Card className="border-indigo-200 bg-indigo-50/50">
+          <CardContent className="p-4">
+            <div className="flex items-start justify-between">
+              <div className="flex items-start gap-3">
+                <Zap className="w-5 h-5 text-indigo-600 flex-shrink-0 mt-0.5" />
+                <div>
+                  <p className="font-medium text-indigo-800">Connect Real Accounts</p>
+                  <p className="text-sm text-indigo-700 mt-1">
+                    Connect your Facebook Pages and Instagram Business accounts using Meta's official API for real posting.
+                  </p>
+                </div>
+              </div>
+              <Button 
+                className="bg-indigo-600 hover:bg-indigo-700 text-white"
+                onClick={connectMetaOAuth}
+                data-testid="connect-meta-oauth-btn"
+              >
+                <ExternalLink className="w-4 h-4 mr-2" />
+                Connect with Meta
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Page Selection Dialog (after OAuth) */}
+        <Dialog open={pageSelectDialogOpen} onOpenChange={setPageSelectDialogOpen}>
+          <DialogContent className="max-w-lg">
+            <DialogHeader>
+              <DialogTitle className="font-heading">Select Pages to Connect</DialogTitle>
+            </DialogHeader>
+            <div className="mt-4">
+              {loadingMetaPages ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="w-6 h-6 animate-spin text-indigo-600" />
+                </div>
+              ) : metaPages.length === 0 ? (
+                <div className="text-center py-8">
+                  <AlertCircle className="w-12 h-12 text-slate-300 mx-auto mb-3" />
+                  <p className="text-slate-600">No pages found. Make sure you have admin access to Facebook Pages.</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {metaPages.map((page) => (
+                    <div key={page.page_id} className="flex items-center justify-between p-4 border border-slate-200 rounded-lg">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-lg bg-gradient-to-r from-blue-600 to-blue-500 flex items-center justify-center">
+                          <Facebook className="w-5 h-5 text-white" />
+                        </div>
+                        <div>
+                          <p className="font-medium text-slate-900">{page.page_name}</p>
+                          <div className="flex items-center gap-2 mt-0.5">
+                            <span className="text-xs text-slate-500">Facebook Page</span>
+                            {page.instagram_business_id && (
+                              <span className="flex items-center gap-1 text-xs text-pink-600">
+                                <Instagram className="w-3 h-3" />
+                                Instagram linked
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                      <Button
+                        size="sm"
+                        className="bg-indigo-600 hover:bg-indigo-700 text-white"
+                        onClick={() => connectMetaPage(page)}
+                        disabled={connectingPage === page.page_id}
+                      >
+                        {connectingPage === page.page_id ? (
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : (
+                          "Connect"
+                        )}
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </DialogContent>
+        </Dialog>
+
         {/* Demo Notice */}
         <Card className="border-amber-200 bg-amber-50/50">
           <CardContent className="p-4">
@@ -457,8 +539,8 @@ const SocialAccounts = () => {
               <div>
                 <p className="font-medium text-amber-800">Demo Mode Active</p>
                 <p className="text-sm text-amber-700 mt-1">
-                  All social media connections are simulated for testing purposes. Sync and test post features return mock data. 
-                  To connect real accounts, integrate with the official platform APIs (Meta Graph API for Instagram/Facebook, LinkedIn API, X API).
+                  Mock connections are for testing. Sync and test post features return simulated data. 
+                  Use "Connect with Meta" above to connect real Facebook/Instagram accounts.
                 </p>
               </div>
             </div>
