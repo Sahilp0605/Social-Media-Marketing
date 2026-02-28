@@ -6,8 +6,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
-import { 
-  Type, 
+import {
+  Type,
   Image as ImageIcon,
   Square,
   Circle,
@@ -51,7 +51,7 @@ const TemplateEditor = () => {
   const [backgroundColor, setBackgroundColor] = useState("#ffffff");
 
   const categories = [
-    "Social Media", "E-commerce", "Restaurant", "Real Estate", 
+    "Social Media", "E-commerce", "Restaurant", "Real Estate",
     "Fitness", "Fashion", "Technology", "Healthcare", "Education", "Other"
   ];
 
@@ -68,12 +68,13 @@ const TemplateEditor = () => {
     if (templateId) {
       loadTemplate();
     }
-    
+
     return () => {
       if (fabricCanvasRef.current) {
         fabricCanvasRef.current.dispose();
       }
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [templateId]);
 
   const initCanvas = () => {
@@ -101,7 +102,7 @@ const TemplateEditor = () => {
       setTemplate(res.data);
       setTemplateName(res.data.name);
       setCategory(res.data.category);
-      
+
       if (res.data.canvas_data) {
         fabricCanvasRef.current.loadFromJSON(res.data.canvas_data, () => {
           fabricCanvasRef.current.renderAll();
@@ -126,7 +127,7 @@ const TemplateEditor = () => {
 
   const addShape = (type) => {
     let shape;
-    
+
     if (type === 'rect') {
       shape = new fabric.Rect({
         left: 100,
@@ -145,7 +146,7 @@ const TemplateEditor = () => {
         fill: '#8B5CF6',
       });
     }
-    
+
     if (shape) {
       fabricCanvasRef.current.add(shape);
       fabricCanvasRef.current.setActiveObject(shape);
@@ -197,7 +198,7 @@ const TemplateEditor = () => {
     const scale = 600 / Math.max(preset.width, preset.height);
     const displayWidth = preset.width * scale;
     const displayHeight = preset.height * scale;
-    
+
     fabricCanvasRef.current.setDimensions({ width: displayWidth, height: displayHeight });
     setCanvasSize({ width: displayWidth, height: displayHeight });
   };
@@ -208,7 +209,7 @@ const TemplateEditor = () => {
       quality: 1,
       multiplier: 2
     });
-    
+
     const link = document.createElement('a');
     link.download = `${templateName || 'template'}.png`;
     link.href = dataURL;
@@ -299,9 +300,9 @@ const TemplateEditor = () => {
           {/* Left Toolbar */}
           <Card className="w-16 border-slate-200 shadow-card flex-shrink-0">
             <CardContent className="p-2 flex flex-col gap-2">
-              <Button 
-                variant="ghost" 
-                size="icon" 
+              <Button
+                variant="ghost"
+                size="icon"
                 className="w-full aspect-square"
                 onClick={addText}
                 title="Add Text"
@@ -310,9 +311,9 @@ const TemplateEditor = () => {
                 <Type className="w-5 h-5" />
               </Button>
               <label className="cursor-pointer">
-                <Button 
-                  variant="ghost" 
-                  size="icon" 
+                <Button
+                  variant="ghost"
+                  size="icon"
                   className="w-full aspect-square pointer-events-none"
                   title="Add Image"
                 >
@@ -320,9 +321,9 @@ const TemplateEditor = () => {
                 </Button>
                 <input type="file" accept="image/*" className="hidden" onChange={handleImageUpload} data-testid="add-image-input" />
               </label>
-              <Button 
-                variant="ghost" 
-                size="icon" 
+              <Button
+                variant="ghost"
+                size="icon"
                 className="w-full aspect-square"
                 onClick={() => addShape('rect')}
                 title="Add Rectangle"
@@ -330,9 +331,9 @@ const TemplateEditor = () => {
               >
                 <Square className="w-5 h-5" />
               </Button>
-              <Button 
-                variant="ghost" 
-                size="icon" 
+              <Button
+                variant="ghost"
+                size="icon"
                 className="w-full aspect-square"
                 onClick={() => addShape('circle')}
                 title="Add Circle"
@@ -341,9 +342,9 @@ const TemplateEditor = () => {
                 <Circle className="w-5 h-5" />
               </Button>
               <div className="border-t border-slate-200 my-2"></div>
-              <Button 
-                variant="ghost" 
-                size="icon" 
+              <Button
+                variant="ghost"
+                size="icon"
                 className="w-full aspect-square text-red-500 hover:text-red-600 hover:bg-red-50"
                 onClick={deleteSelected}
                 title="Delete Selected"
@@ -381,11 +382,11 @@ const TemplateEditor = () => {
                       ))}
                     </SelectContent>
                   </Select>
-                  
+
                   <div className="flex items-center gap-2">
                     <Label className="text-xs">Background</Label>
-                    <input 
-                      type="color" 
+                    <input
+                      type="color"
                       value={backgroundColor}
                       onChange={(e) => changeBackgroundColor(e.target.value)}
                       className="w-8 h-8 rounded cursor-pointer"
@@ -416,8 +417,8 @@ const TemplateEditor = () => {
                         </div>
                         <div className="flex items-center gap-2">
                           <Label className="text-xs">Color</Label>
-                          <input 
-                            type="color" 
+                          <input
+                            type="color"
                             value={activeObject.fill || '#000000'}
                             onChange={(e) => updateObjectProperty('fill', e.target.value)}
                             className="w-8 h-8 rounded cursor-pointer"
@@ -425,17 +426,17 @@ const TemplateEditor = () => {
                           />
                         </div>
                         <div className="flex gap-1">
-                          <Button 
-                            variant="ghost" 
-                            size="icon" 
+                          <Button
+                            variant="ghost"
+                            size="icon"
                             className="w-8 h-8"
                             onClick={() => updateObjectProperty('fontWeight', activeObject.fontWeight === 'bold' ? 'normal' : 'bold')}
                           >
                             <Bold className="w-4 h-4" />
                           </Button>
-                          <Button 
-                            variant="ghost" 
-                            size="icon" 
+                          <Button
+                            variant="ghost"
+                            size="icon"
                             className="w-8 h-8"
                             onClick={() => updateObjectProperty('fontStyle', activeObject.fontStyle === 'italic' ? 'normal' : 'italic')}
                           >
@@ -444,12 +445,12 @@ const TemplateEditor = () => {
                         </div>
                       </>
                     )}
-                    
+
                     {(activeObject.type === 'rect' || activeObject.type === 'circle') && (
                       <div className="flex items-center gap-2">
                         <Label className="text-xs">Fill</Label>
-                        <input 
-                          type="color" 
+                        <input
+                          type="color"
                           value={activeObject.fill || '#4F46E5'}
                           onChange={(e) => updateObjectProperty('fill', e.target.value)}
                           className="w-8 h-8 rounded cursor-pointer"

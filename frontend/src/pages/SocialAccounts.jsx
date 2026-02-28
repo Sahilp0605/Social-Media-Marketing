@@ -5,11 +5,11 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { 
-  Plus, 
-  Instagram, 
-  Facebook, 
-  Linkedin, 
+import {
+  Plus,
+  Instagram,
+  Facebook,
+  Linkedin,
   Twitter,
   Trash2,
   CheckCircle,
@@ -66,7 +66,7 @@ const SocialAccounts = () => {
 
   useEffect(() => {
     fetchAccounts();
-    
+
     // Check if returning from Meta OAuth
     if (searchParams.get("meta_connected") === "true") {
       setPageSelectDialogOpen(true);
@@ -75,6 +75,7 @@ const SocialAccounts = () => {
       searchParams.delete("meta_connected");
       setSearchParams(searchParams);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const fetchAccounts = async () => {
@@ -269,8 +270,8 @@ const SocialAccounts = () => {
                   </div>
                 </div>
 
-                <Button 
-                  type="submit" 
+                <Button
+                  type="submit"
                   className="w-full bg-indigo-600 hover:bg-indigo-700 text-white"
                   disabled={!form.platform || !form.account_name}
                   data-testid="save-account-btn"
@@ -327,7 +328,7 @@ const SocialAccounts = () => {
                 </div>
                 <h3 className="text-lg font-semibold text-slate-900 font-heading">No accounts connected</h3>
                 <p className="text-slate-500 mt-1">Connect your social media accounts to start posting</p>
-                <Button 
+                <Button
                   className="mt-6 bg-indigo-600 hover:bg-indigo-700 text-white"
                   onClick={() => setDialogOpen(true)}
                 >
@@ -341,9 +342,9 @@ const SocialAccounts = () => {
                   const platform = getPlatformInfo(account.platform);
                   const isSyncing = syncing[account.account_id];
                   const isTesting = testingPost[account.account_id];
-                  
+
                   return (
-                    <div 
+                    <div
                       key={account.account_id}
                       className="p-4 border border-slate-100 rounded-xl hover:border-slate-200 transition-colors"
                       data-testid={`account-${account.account_id}`}
@@ -369,7 +370,7 @@ const SocialAccounts = () => {
                               )}
                             </div>
                             <p className="text-sm text-slate-500 mt-0.5">{platform.name} • {platform.description}</p>
-                            
+
                             {/* Stats */}
                             {account.followers_count > 0 && (
                               <div className="flex items-center gap-4 mt-2 text-sm">
@@ -387,11 +388,11 @@ const SocialAccounts = () => {
                             )}
                           </div>
                         </div>
-                        
+
                         <div className="flex items-center gap-2">
                           {/* Sync Button */}
-                          <Button 
-                            variant="outline" 
+                          <Button
+                            variant="outline"
                             size="sm"
                             onClick={() => syncAccount(account.account_id)}
                             disabled={isSyncing}
@@ -404,10 +405,10 @@ const SocialAccounts = () => {
                             )}
                             <span className="ml-1.5">Sync</span>
                           </Button>
-                          
+
                           {/* Test Post Button */}
-                          <Button 
-                            variant="outline" 
+                          <Button
+                            variant="outline"
                             size="sm"
                             onClick={() => testPost(account.account_id)}
                             disabled={isTesting}
@@ -421,11 +422,11 @@ const SocialAccounts = () => {
                             )}
                             <span className="ml-1.5">Test</span>
                           </Button>
-                          
+
                           {/* Disconnect Button */}
-                          <Button 
-                            variant="ghost" 
-                            size="sm" 
+                          <Button
+                            variant="ghost"
+                            size="sm"
                             className="text-red-500 hover:text-red-600 hover:bg-red-50"
                             onClick={() => disconnectAccount(account.account_id)}
                             data-testid={`disconnect-${account.account_id}`}
@@ -434,7 +435,7 @@ const SocialAccounts = () => {
                           </Button>
                         </div>
                       </div>
-                      
+
                       {/* Last Synced */}
                       {account.last_synced_at && (
                         <p className="text-xs text-slate-400 mt-3">
@@ -462,7 +463,7 @@ const SocialAccounts = () => {
                   </p>
                 </div>
               </div>
-              <Button 
+              <Button
                 className="bg-indigo-600 hover:bg-indigo-700 text-white"
                 onClick={connectMetaOAuth}
                 data-testid="connect-meta-oauth-btn"
@@ -539,7 +540,7 @@ const SocialAccounts = () => {
               <div>
                 <p className="font-medium text-amber-800">Demo Mode Active</p>
                 <p className="text-sm text-amber-700 mt-1">
-                  Mock connections are for testing. Sync and test post features return simulated data. 
+                  Mock connections are for testing. Sync and test post features return simulated data.
                   Use "Connect with Meta" above to connect real Facebook/Instagram accounts.
                 </p>
               </div>

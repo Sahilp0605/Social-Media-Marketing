@@ -20,6 +20,7 @@ const SubscriptionSuccess = () => {
     } else {
       setStatus("error");
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams]);
 
   const pollPaymentStatus = async (sessionId, attempts = 0) => {
@@ -33,7 +34,7 @@ const SubscriptionSuccess = () => {
 
     try {
       const res = await axios.get(`${API}/subscription/status/${sessionId}`);
-      
+
       if (res.data.payment_status === "paid") {
         setStatus("success");
         setPlanId(res.data.plan_id);
@@ -87,7 +88,7 @@ const SubscriptionSuccess = () => {
             </div>
             <h1 className="text-2xl font-bold text-slate-900 font-heading">Welcome to {getPlanName(planId)}!</h1>
             <p className="text-slate-500 mt-2">Your subscription has been activated successfully.</p>
-            <Button 
+            <Button
               className="mt-8 bg-indigo-600 hover:bg-indigo-700 text-white"
               onClick={() => navigate("/dashboard")}
               data-testid="go-to-dashboard-btn"
@@ -104,7 +105,7 @@ const SubscriptionSuccess = () => {
             </div>
             <h1 className="text-2xl font-bold text-slate-900 font-heading">Payment Error</h1>
             <p className="text-slate-500 mt-2">Something went wrong with your payment. Please try again.</p>
-            <Button 
+            <Button
               className="mt-8"
               variant="outline"
               onClick={() => navigate("/subscription")}
@@ -121,7 +122,7 @@ const SubscriptionSuccess = () => {
             </div>
             <h1 className="text-2xl font-bold text-slate-900 font-heading">Taking Longer Than Expected</h1>
             <p className="text-slate-500 mt-2">Your payment is still being processed. Please check your subscription status later.</p>
-            <Button 
+            <Button
               className="mt-8"
               variant="outline"
               onClick={() => navigate("/subscription")}
@@ -138,7 +139,7 @@ const SubscriptionSuccess = () => {
             </div>
             <h1 className="text-2xl font-bold text-slate-900 font-heading">Session Expired</h1>
             <p className="text-slate-500 mt-2">Your payment session has expired. Please try again.</p>
-            <Button 
+            <Button
               className="mt-8"
               variant="outline"
               onClick={() => navigate("/subscription")}
