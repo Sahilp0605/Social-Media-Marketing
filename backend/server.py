@@ -1001,6 +1001,19 @@ async def create_post(post: PostCreate, user: dict = Depends(get_current_user)):
     post_id = f"post_{uuid.uuid4().hex[:12]}"
     now = datetime.now(timezone.utc).isoformat()
     
+    # Determine status based on scheduled_at
+    status = post.status
+    if post.scheduled_at:
+        # Parse scheduled time and check if it's in the future
+        try:
+            scheduled_dt = datetime.fromisoformat(post.scheduled_at.replace('Z', '+00:00'))
+            if scheduled_dt.tzinfo is None:
+                scheduled_dt = scheduled_dt.replace(tzinfo=timezone.utc)
+            if scheduled_dt > datetime.now(timezone.utc):
+                status = "scheduled"
+        except (ValueError, TypeError):
+            pass  # Keep original status if parsing fails
+    
     post_doc = {
         "post_id": post_id,
         "user_id": user["user_id"],
@@ -1010,7 +1023,7 @@ async def create_post(post: PostCreate, user: dict = Depends(get_current_user)):
         "platforms": post.platforms,
         "image_url": post.image_url,
         "scheduled_at": post.scheduled_at,
-        "status": post.status,
+        "status": status,
         "views": 0,
         "clicks": 0,
         "likes": 0,
