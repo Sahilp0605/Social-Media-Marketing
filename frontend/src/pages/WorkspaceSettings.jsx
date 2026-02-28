@@ -20,7 +20,8 @@ import {
   X,
   MessageSquare,
   Bell,
-  Plus
+  Plus,
+  AlertTriangle
 } from "lucide-react";
 import { toast } from "sonner";
 import axios from "axios";
