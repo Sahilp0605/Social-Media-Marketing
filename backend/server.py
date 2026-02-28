@@ -81,7 +81,8 @@ PLANS = {
             "ai_content": True,
             "lead_capture": True,
             "analytics": "advanced",
-            "support": "priority"
+            "support": "priority",
+            "team_members": 3
         }
     },
     "starter": {
@@ -96,7 +97,8 @@ PLANS = {
             "ai_content": False,
             "lead_capture": False,
             "analytics": "basic",
-            "support": "email"
+            "support": "email",
+            "team_members": 2
         }
     },
     "professional": {
@@ -111,7 +113,8 @@ PLANS = {
             "ai_content": True,
             "lead_capture": True,
             "analytics": "advanced",
-            "support": "priority"
+            "support": "priority",
+            "team_members": 10
         }
     },
     "enterprise": {
@@ -128,7 +131,8 @@ PLANS = {
             "analytics": "advanced",
             "white_label": True,
             "api_access": True,
-            "support": "dedicated"
+            "support": "dedicated",
+            "team_members": -1  # unlimited
         }
     }
 }
