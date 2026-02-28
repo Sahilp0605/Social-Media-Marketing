@@ -161,6 +161,21 @@ const WorkspaceSettings = () => {
     }
   };
 
+  const createDefaultWorkspace = async () => {
+    setLoading(true);
+    try {
+      const res = await axios.post(`${API}/workspace`, {
+        name: "My Workspace",
+        industry: null
+      });
+      toast.success("Workspace created!");
+      fetchWorkspace();
+    } catch (err) {
+      toast.error(err.response?.data?.detail || "Failed to create workspace");
+      setLoading(false);
+    }
+  };
+
   if (loading) {
     return (
       <DashboardLayout>
@@ -177,7 +192,19 @@ const WorkspaceSettings = () => {
         <div className="text-center py-16">
           <Building2 className="w-16 h-16 text-slate-300 mx-auto mb-4" />
           <h3 className="text-lg font-semibold text-slate-900">No Workspace</h3>
-          <p className="text-slate-500 mt-1">Create a workspace to get started</p>
+          <p className="text-slate-500 mt-1 mb-6">Create a workspace to get started with team collaboration</p>
+          <Button 
+            onClick={createDefaultWorkspace}
+            className="bg-indigo-600 hover:bg-indigo-700 text-white"
+            data-testid="create-workspace-btn"
+          >
+            <Plus className="w-4 h-4 mr-2" />
+            Create Workspace
+          </Button>
+        </div>
+      </DashboardLayout>
+    );
+  }
         </div>
       </DashboardLayout>
     );
